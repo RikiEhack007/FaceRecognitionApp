@@ -1,0 +1,40 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+## NuGet
+packages/
+*.nupkg
+
+## Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+bld/
+[Bb]in/
+[Oo]bj/
+
+## Visual Studio
+.vs/
+*.rsuser
+*.sln.docstates
+
+## User-specific files
+*.user
+*.userosscache
+*.sln.docstates
+[Tt]humbs.db
+
+## Database files (don't commit local DBs)
+*.mdf
+*.ldf
+*.db
+
+## OS
+.DS_Store
+Thumbs.db

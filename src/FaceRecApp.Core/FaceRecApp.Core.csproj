@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>FaceRecApp.Core</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- ==================== Face AI ==================== -->
+    <!-- FaceAiSharp: Face detection (SCRFD) + recognition (ArcFace) + eye state -->
+    <!-- .Bundle version includes ONNX models bundled — zero extra setup -->
+    <PackageReference Include="FaceAiSharp.Bundle" Version="0.5.23" />
+
+    <!-- ONNX Runtime: Required by FaceAiSharp to run AI models -->
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
+
+    <!-- ==================== Database ==================== -->
+    <!-- EF Core 9 + SQL Server provider -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.4" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+
+    <!-- Vector Search plugin for EF Core 9 -->
+    <!-- Adds: SqlVector mapping, EF.Functions.VectorDistance() -->
+    <!-- NOTE: When EF Core 10 releases (.NET 10, Nov 2026), this plugin becomes -->
+    <!-- unnecessary — EF Core 10 has native SqlVector<float> built-in. -->
+    <PackageReference Include="EFCore.SqlServer.VectorSearch" Version="9.0.0-preview.2" />
+
+    <!-- ==================== Image Processing ==================== -->
+    <!-- ImageSharp: Cross-platform image library (no System.Drawing dependency) -->
+    <!-- Required by FaceAiSharp — it works with Image<Rgb24> -->
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.7" />
+    <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.5" />
+
+    <!-- ==================== OpenCvSharp (Core only, no WPF) ==================== -->
+    <!-- Needed in Core because services accept OpenCvSharp.Mat as input. -->
+    <!-- WPF-specific extensions (BitmapSource) remain in the WPF project. -->
+    <PackageReference Include="OpenCvSharp4" Version="4.10.0.20241108" />
+    <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.10.0.20241108" />
+  </ItemGroup>
+
+</Project>

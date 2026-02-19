@@ -1,0 +1,284 @@
+<Window x:Class="FaceRecApp.WPF.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:FaceRecApp.WPF.ViewModels"
+        xmlns:local="clr-namespace:FaceRecApp.WPF.Converters"
+        Title="Face Recognition PoC — SQL Server 2025 Vector Search"
+        Height="700" Width="1100"
+        MinHeight="500" MinWidth="800"
+        WindowStartupLocation="CenterScreen"
+        Background="#1E1E2E">
+
+    <Window.DataContext>
+        <vm:MainViewModel />
+    </Window.DataContext>
+
+    <Window.Resources>
+        <!-- Styles -->
+        <Style x:Key="HeaderText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#CDD6F4"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+
+        <Style x:Key="InfoText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#A6ADC8"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+
+        <Style x:Key="ActionButton" TargetType="Button">
+            <Setter Property="Background" Value="#45475A"/>
+            <Setter Property="Foreground" Value="#CDD6F4"/>
+            <Setter Property="BorderBrush" Value="#585B70"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="14,8"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#585B70"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#6C7086"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource ActionButton}">
+            <Setter Property="Background" Value="#89B4FA"/>
+            <Setter Property="Foreground" Value="#1E1E2E"/>
+            <Setter Property="BorderBrush" Value="#89B4FA"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
+        <Style x:Key="GreenButton" TargetType="Button" BasedOn="{StaticResource ActionButton}">
+            <Setter Property="Background" Value="#A6E3A1"/>
+            <Setter Property="Foreground" Value="#1E1E2E"/>
+            <Setter Property="BorderBrush" Value="#A6E3A1"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>   <!-- Top bar -->
+            <RowDefinition Height="*"/>      <!-- Main content -->
+            <RowDefinition Height="Auto"/>   <!-- Status bar -->
+        </Grid.RowDefinitions>
+
+        <!-- ══════════════════════════════════════ -->
+        <!-- TOP BAR — Controls -->
+        <!-- ══════════════════════════════════════ -->
+        <Border Grid.Row="0" Background="#181825" Padding="12,8">
+            <DockPanel>
+                <!-- Left: Title -->
+                <TextBlock DockPanel.Dock="Left"
+                           Text="Face Recognition PoC"
+                           Foreground="#CDD6F4"
+                           FontSize="16" FontWeight="Bold"
+                           VerticalAlignment="Center"/>
+
+                <!-- Right: Buttons -->
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="{Binding IsCameraRunning, Converter={x:Static local:Converters.CameraButtonText}}"
+                            Command="{Binding ToggleCameraCommand}"
+                            Style="{StaticResource PrimaryButton}"
+                            Width="130" Margin="0,0,8,0"/>
+                    <Button Content="Register Person"
+                            Command="{Binding OpenRegisterCommand}"
+                            Style="{StaticResource GreenButton}"
+                            Margin="0,0,8,0"/>
+                    <Button Content="Database"
+                            Command="{Binding OpenDatabaseCommand}"
+                            Style="{StaticResource ActionButton}"
+                            Margin="0,0,8,0"/>
+                    <Button Content="Benchmark"
+                            Command="{Binding OpenBenchmarkCommand}"
+                            Style="{StaticResource ActionButton}"
+                            Margin="0,0,8,0"/>
+                    <Button Content="Reset Liveness"
+                            Command="{Binding ResetLivenessCommand}"
+                            Style="{StaticResource ActionButton}"/>
+                </StackPanel>
+
+                <!-- Center: Stats -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding FpsText}" Style="{StaticResource InfoText}" Margin="0,0,20,0"/>
+                    <TextBlock Text="{Binding DatabaseText}" Style="{StaticResource InfoText}" Margin="0,0,20,0"/>
+                    <TextBlock Text="{Binding LivenessText}" Style="{StaticResource InfoText}"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- ══════════════════════════════════════ -->
+        <!-- MAIN CONTENT — Camera + Side Panel -->
+        <!-- ══════════════════════════════════════ -->
+        <Grid Grid.Row="1" Margin="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="3*"/>   <!-- Camera feed -->
+                <ColumnDefinition Width="1*" MinWidth="250"/>   <!-- Side panel -->
+            </Grid.ColumnDefinitions>
+
+            <!-- Camera Feed -->
+            <Border Grid.Column="0" Background="#11111B" CornerRadius="8" Margin="0,0,8,0">
+                <Grid>
+                    <!-- Live camera image -->
+                    <Image Source="{Binding CameraFrame}"
+                           Stretch="Uniform"
+                           RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+
+                    <!-- Placeholder when camera is off -->
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                                Visibility="{Binding IsCameraRunning, Converter={x:Static local:Converters.InverseBoolToVis}}">
+                        <TextBlock Text="📷"
+                                   FontSize="48"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,0,0,10"/>
+                        <TextBlock Text="Camera is off"
+                                   Foreground="#6C7086"
+                                   FontSize="16"
+                                   HorizontalAlignment="Center"/>
+                        <TextBlock Text="Click 'Start Camera' to begin"
+                                   Foreground="#585B70"
+                                   FontSize="13"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,5,0,0"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Side Panel -->
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>    <!-- Recognition results -->
+                    <RowDefinition Height="*"/>       <!-- Activity log -->
+                </Grid.RowDefinitions>
+
+                <!-- Recognition Results -->
+                <Border Grid.Row="0" Background="#181825" CornerRadius="8" Padding="12" Margin="0,0,0,8">
+                    <StackPanel>
+                        <TextBlock Text="DETECTED FACES" Style="{StaticResource HeaderText}"/>
+
+                        <ItemsControl ItemsSource="{Binding CurrentResults}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#1E1E2E" CornerRadius="5"
+                                            Padding="10,8" Margin="0,0,0,4">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="{Binding Name}"
+                                                           Foreground="#CDD6F4"
+                                                           FontSize="14" FontWeight="SemiBold"/>
+                                                <TextBlock Foreground="#A6ADC8" FontSize="11">
+                                                    <Run Text="Similarity: "/>
+                                                    <Run Text="{Binding Similarity, Mode=OneWay}"/>
+                                                </TextBlock>
+                                            </StackPanel>
+                                            <Border Grid.Column="1"
+                                                    Background="{Binding StatusColor}"
+                                                    CornerRadius="3"
+                                                    Padding="8,3"
+                                                    VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Status}"
+                                                           Foreground="#1E1E2E"
+                                                           FontSize="10"
+                                                           FontWeight="Bold"/>
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- No faces message -->
+                        <TextBlock Text="No faces detected"
+                                   Foreground="#585B70" FontSize="12"
+                                   Margin="0,5,0,0"
+                                   Visibility="{Binding CurrentResults.Count, Converter={x:Static local:Converters.ZeroToVisible}}"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Activity Log -->
+                <Border Grid.Row="1" Background="#181825" CornerRadius="8" Padding="12">
+                    <DockPanel>
+                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                            <TextBlock Text="ACTIVITY LOG" Style="{StaticResource HeaderText}"
+                                       DockPanel.Dock="Left" VerticalAlignment="Center"/>
+                            <Button Content="Clear" Command="{Binding ClearLogCommand}"
+                                    DockPanel.Dock="Right"
+                                    FontSize="11" Padding="8,3"
+                                    Background="#313244" Foreground="#A6ADC8"
+                                    BorderThickness="0" Cursor="Hand">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}"
+                                                CornerRadius="3" Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#45475A"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                        </DockPanel>
+
+                        <ListBox ItemsSource="{Binding ActivityLog}"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Foreground="#A6ADC8"
+                                 FontSize="11"
+                                 FontFamily="Cascadia Code, Consolas, monospace"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Padding" Value="0,1"/>
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="BorderThickness" Value="0"/>
+                                    <Setter Property="Focusable" Value="False"/>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                        </ListBox>
+                    </DockPanel>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- ══════════════════════════════════════ -->
+        <!-- STATUS BAR — Timing info -->
+        <!-- ══════════════════════════════════════ -->
+        <Border Grid.Row="2" Background="#181825" Padding="12,6">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Left"
+                           Text="{Binding StatusText}"
+                           Foreground="#A6ADC8" FontSize="12"/>
+                <TextBlock DockPanel.Dock="Right"
+                           Text="{Binding TimingText}"
+                           Foreground="#6C7086" FontSize="11"
+                           HorizontalAlignment="Right"
+                           FontFamily="Cascadia Code, Consolas, monospace"/>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

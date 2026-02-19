@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>FaceRecApp.WPF</RootNamespace>
+    <ApplicationIcon />
+    <StartupObject>FaceRecApp.WPF.App</StartupObject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Copy appsettings.json to output directory -->
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Reference to Core library (business logic, entities, services) -->
+    <ProjectReference Include="..\FaceRecApp.Core\FaceRecApp.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ==================== Webcam ==================== -->
+    <!-- OpenCvSharp4: Camera capture + image manipulation -->
+    <PackageReference Include="OpenCvSharp4" Version="4.10.0.20241108" />
+    <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.10.0.20241108" />
+    <PackageReference Include="OpenCvSharp4.Extensions" Version="4.10.0.20241108" />
+    <!-- WPF extensions for converting Mat → BitmapSource -->
+    <PackageReference Include="OpenCvSharp4.WpfExtensions" Version="4.10.0.20241108" />
+
+    <!-- ==================== MVVM Toolkit ==================== -->
+    <!-- CommunityToolkit.Mvvm: [ObservableProperty], [RelayCommand], etc. -->
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+
+    <!-- ==================== DI Container ==================== -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.4" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.4" />
+
+    <!-- ==================== EF Core Tools ==================== -->
+    <!-- Required by dotnet ef CLI when this project is the startup project -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>
