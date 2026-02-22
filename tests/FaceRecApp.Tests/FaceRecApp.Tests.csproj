@@ -20,10 +20,10 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>
     <!-- In-memory database for testing without SQL Server -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.4" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.13" />
     <!-- SQL Server provider for real integration tests -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.4" />
-    <PackageReference Include="EFCore.SqlServer.VectorSearch" Version="9.0.0-preview.2" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.13" />
+    <PackageReference Include="EFCore.SqlServer.VectorSearch" Version="9.0.0" />
   </ItemGroup>
 
 </Project>

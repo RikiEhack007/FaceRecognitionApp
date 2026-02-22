@@ -38,6 +38,34 @@ public static class WpfImageHelper
         return bitmapSource;
     }
 
+    // ──────────────────────────────────────────────
+    // WriteableBitmap (real-time video display)
+    // ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Create a new WriteableBitmap from a Mat.
+    /// Call once to initialize, then use UpdateWriteableBitmap for subsequent frames.
+    /// Must be called on the UI thread.
+    /// </summary>
+    public static WriteableBitmap CreateWriteableBitmap(Mat mat)
+    {
+        return WriteableBitmapConverter.ToWriteableBitmap(mat);
+    }
+
+    /// <summary>
+    /// Update an existing WriteableBitmap in-place from a Mat.
+    /// No allocation — copies pixels directly via Lock/memcpy/Unlock.
+    /// ~1-2ms for 640x480. Must be called on the UI thread.
+    /// </summary>
+    public static void UpdateWriteableBitmap(Mat mat, WriteableBitmap bitmap)
+    {
+        WriteableBitmapConverter.ToWriteableBitmap(mat, bitmap);
+    }
+
+    // ──────────────────────────────────────────────
+    // Thumbnails
+    // ──────────────────────────────────────────────
+
     /// <summary>
     /// Convert JPEG byte array → WPF BitmapImage.
     /// Used for displaying face thumbnails stored in the database.

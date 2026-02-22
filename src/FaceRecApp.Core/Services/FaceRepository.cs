@@ -1,25 +1,24 @@
+using System.Text;
+using System.Text.Json;
 using FaceRecApp.Core.Data;
 using FaceRecApp.Core.Entities;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace FaceRecApp.Core.Services;
 
 /// <summary>
 /// Database repository for face recognition operations.
-/// 
+///
 /// This is where the SQL Server 2025 vector magic happens.
-/// 
+///
 /// Key operations:
-///   - FindClosestMatch(): Uses VECTOR_DISTANCE('cosine', ...) to find the nearest
-///     face embedding in the database — this runs INSIDE SQL Server, not in C#.
+///   - FindClosestMatch(): Uses VECTOR_SEARCH (DiskANN ANN) or
+///     VECTOR_DISTANCE (brute-force KNN) depending on whether the
+///     DiskANN vector index exists.
 ///   - RegisterPerson(): Stores a new person with their face embedding(s).
 ///   - AddFaceSample(): Adds additional face embeddings for better accuracy.
-/// 
-/// Why a repository pattern?
-///   - Separates database logic from business logic
-///   - Makes it easy to swap SQL Server for another database (e.g., PostgreSQL + pgvector)
-///   - Simplifies unit testing with mock/in-memory database
-/// 
+///
 /// Thread safety:
 ///   Uses IDbContextFactory to create short-lived DbContext instances per operation.
 ///   This is safe for concurrent access from multiple threads.
@@ -27,11 +26,40 @@ namespace FaceRecApp.Core.Services;
 public class FaceRepository
 {
     private readonly IDbContextFactory<FaceDbContext> _dbFactory;
+    private static volatile bool _useVectorSearch;
 
     public FaceRepository(IDbContextFactory<FaceDbContext> dbFactory)
     {
         _dbFactory = dbFactory;
     }
+
+    /// <summary>
+    /// Check if the DiskANN vector index exists and is enabled.
+    /// When true, FindClosestMatchAsync uses the faster VECTOR_SEARCH TVF.
+    /// Call this at startup or after creating/dropping the index.
+    /// </summary>
+    public async Task DetectVectorIndexAsync()
+    {
+        try
+        {
+            await using var db = await _dbFactory.CreateDbContextAsync();
+            var count = await db.Database.SqlQueryRaw<int>(
+                @"SELECT COUNT(*) AS [Value] FROM sys.indexes i
+                  JOIN sys.tables t ON i.object_id = t.object_id
+                  WHERE t.name = 'FaceEmbeddings' AND i.type_desc = 'VECTOR' AND i.is_disabled = 0"
+            ).FirstOrDefaultAsync();
+
+            _useVectorSearch = count > 0;
+            Console.WriteLine($"[Repository] DiskANN index detected: {_useVectorSearch}");
+        }
+        catch
+        {
+            _useVectorSearch = false;
+        }
+    }
+
+    /// <summary>Whether the DiskANN VECTOR_SEARCH path is active.</summary>
+    public bool UseVectorSearch => _useVectorSearch;
 
     // ══════════════════════════════════════════════
     //  VECTOR SEARCH — The core matching operation
@@ -39,49 +67,101 @@ public class FaceRepository
 
     /// <summary>
     /// Find the closest matching face embedding in the database.
-    /// 
-    /// This is the heart of the recognition system. It:
-    ///   1. Takes a query embedding (from a live camera frame)
-    ///   2. Sends it to SQL Server
-    ///   3. SQL Server computes VECTOR_DISTANCE('cosine', stored, query)
-    ///      for every embedding in the database
-    ///   4. Returns the closest match (smallest distance)
-    /// 
-    /// The generated SQL looks like:
-    ///   SELECT TOP(1) e.*, p.*,
-    ///     VECTOR_DISTANCE('cosine', e.Embedding, @queryVector) AS Distance
-    ///   FROM FaceEmbeddings e
-    ///   JOIN Persons p ON e.PersonId = p.Id
-    ///   WHERE p.IsActive = 1
-    ///   ORDER BY Distance ASC
-    /// 
-    /// Performance:
-    ///   - 100 faces:   ~1ms
-    ///   - 1,000 faces:  ~3ms
-    ///   - 10,000 faces: ~10ms (with DiskANN index: ~2ms)
+    ///
+    /// Two execution paths:
+    ///   1. DiskANN (VECTOR_SEARCH TVF): ~5ms at 100K rows — approximate nearest neighbor
+    ///   2. Brute-force (ORDER BY VECTOR_DISTANCE): ~75ms at 100K rows — exact KNN
+    ///
+    /// The DiskANN path is used automatically when a vector index exists.
+    /// Note: DiskANN indexes make the table read-only in SQL Server 2025.
     /// </summary>
-    /// <param name="queryEmbedding">512-dim float array from FaceRecognitionService</param>
-    /// <returns>Match result with person info and distance, or null if DB is empty</returns>
     public async Task<FaceMatchResult?> FindClosestMatchAsync(float[] queryEmbedding)
+    {
+        if (_useVectorSearch)
+        {
+            try
+            {
+                return await FindClosestMatchVectorSearchAsync(queryEmbedding);
+            }
+            catch (SqlException)
+            {
+                // Index may have been dropped — fall back to brute-force
+                _useVectorSearch = false;
+            }
+        }
+
+        return await FindClosestMatchBruteForceAsync(queryEmbedding);
+    }
+
+    /// <summary>
+    /// DiskANN approximate nearest neighbor search via VECTOR_SEARCH TVF.
+    /// Requires the DiskANN vector index on FaceEmbeddings.Embedding.
+    /// </summary>
+    private async Task<FaceMatchResult?> FindClosestMatchVectorSearchAsync(float[] queryEmbedding)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
 
-        // ⭐ THE KEY QUERY: SQL Server 2025 vector distance search
-        // 
-        // EF.Functions.VectorDistance() is translated by the EFCore.SqlServer.VectorSearch
-        // plugin into:  VECTOR_DISTANCE('cosine', [Embedding], @p0)
-        //
-        // This runs entirely inside SQL Server — no data comes back to C# for comparison.
-        // SQL Server's query engine is optimized for this operation.
+        var vectorJson = EmbeddingToJson(queryEmbedding);
+
+        // VECTOR_SEARCH returns top N by the DiskANN graph traversal (~5ms at 100K).
+        // We request more than 1 because some may belong to inactive persons.
+        var results = await db.Database.SqlQueryRaw<VectorSearchRow>(
+            @"DECLARE @qv VECTOR(512) = CAST(@p0 AS VECTOR(512));
+              SELECT t.Id, t.PersonId, s.distance AS Distance
+              FROM VECTOR_SEARCH(
+                  TABLE = dbo.FaceEmbeddings AS t,
+                  COLUMN = Embedding,
+                  SIMILAR_TO = @qv,
+                  METRIC = 'cosine',
+                  TOP_N = 10
+              ) AS s
+              ORDER BY s.distance",
+            new SqlParameter("@p0", vectorJson)
+        ).ToListAsync();
+
+        if (results.Count == 0)
+            return null;
+
+        // Join with Persons to filter by IsActive and get person info
+        var personIds = results.Select(r => r.PersonId).Distinct().ToList();
+        var persons = await db.Persons
+            .Where(p => personIds.Contains(p.Id) && p.IsActive)
+            .ToDictionaryAsync(p => p.Id);
+
+        foreach (var row in results)
+        {
+            if (persons.TryGetValue(row.PersonId, out var person))
+            {
+                return new FaceMatchResult
+                {
+                    Person = person,
+                    FaceEmbedding = new FaceEmbedding { Id = row.Id, PersonId = row.PersonId },
+                    Distance = (float)row.Distance,
+                    IsMatch = row.Distance <= RecognitionSettings.DistanceThreshold
+                };
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Brute-force exact nearest neighbor search via ORDER BY VECTOR_DISTANCE.
+    /// Works without any vector index. Scans all rows.
+    /// </summary>
+    private async Task<FaceMatchResult?> FindClosestMatchBruteForceAsync(float[] queryEmbedding)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
         var match = await db.FaceEmbeddings
             .Include(e => e.Person)
-            .Where(e => e.Person.IsActive)  // Only search active persons
+            .Where(e => e.Person.IsActive)
             .Select(e => new
             {
                 Embedding = e,
                 Distance = EF.Functions.VectorDistance("cosine", e.Embedding, queryEmbedding)
             })
-            .OrderBy(x => x.Distance)  // Closest first (smallest distance)
+            .OrderBy(x => x.Distance)
             .FirstOrDefaultAsync();
 
         if (match == null)
@@ -94,6 +174,19 @@ public class FaceRepository
             Distance = (float)match.Distance,
             IsMatch = match.Distance <= RecognitionSettings.DistanceThreshold
         };
+    }
+
+    private static string EmbeddingToJson(float[] embedding)
+    {
+        var sb = new StringBuilder(embedding.Length * 12);
+        sb.Append('[');
+        for (int i = 0; i < embedding.Length; i++)
+        {
+            if (i > 0) sb.Append(',');
+            sb.Append(embedding[i].ToString("G9"));
+        }
+        sb.Append(']');
+        return sb.ToString();
     }
 
     /// <summary>
@@ -231,6 +324,7 @@ public class FaceRepository
         byte[]? thumbnail = null,
         string? angle = null)
     {
+
         await using var db = await _dbFactory.CreateDbContextAsync();
 
         var person = await db.Persons.FindAsync(personId)
@@ -340,6 +434,7 @@ public class FaceRepository
     /// </summary>
     public async Task DeactivatePersonAsync(int personId)
     {
+
         await using var db = await _dbFactory.CreateDbContextAsync();
 
         var person = await db.Persons.FindAsync(personId);
@@ -355,6 +450,7 @@ public class FaceRepository
     /// </summary>
     public async Task DeletePersonAsync(int personId)
     {
+
         await using var db = await _dbFactory.CreateDbContextAsync();
 
         var person = await db.Persons
@@ -373,6 +469,7 @@ public class FaceRepository
     /// </summary>
     public async Task DeleteFaceSampleAsync(int embeddingId)
     {
+
         await using var db = await _dbFactory.CreateDbContextAsync();
 
         var embedding = await db.FaceEmbeddings.FindAsync(embeddingId);
@@ -481,4 +578,14 @@ public class DatabaseStats
     public int LivenessFailures { get; set; }
     public float AverageSamplesPerPerson { get; set; }
     public float RecognitionRate { get; set; }
+}
+
+/// <summary>
+/// Row returned by VECTOR_SEARCH TVF raw SQL query.
+/// </summary>
+public class VectorSearchRow
+{
+    public int Id { get; set; }
+    public int PersonId { get; set; }
+    public double Distance { get; set; }
 }

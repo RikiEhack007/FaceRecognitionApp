@@ -46,13 +46,21 @@ public class RecognitionResult
     public bool IsHighConfidence =>
         IsRecognized && Distance <= RecognitionSettings.HighConfidenceDistance;
 
-    // ─── Liveness ───
+    // ─── Liveness & Anti-Spoofing ───
 
     /// <summary>
     /// Did this face pass the liveness check (blink detection)?
     /// False means possible spoofing attempt.
     /// </summary>
-    public bool IsLive { get; set; } = true;
+    public bool IsLive { get; set; } = false;
+
+    /// <summary>
+    /// Did per-face texture analysis detect this as a likely spoof?
+    /// True = face is on a phone screen, printout, or other reproduction.
+    /// This is independent of liveness — a face can be "not yet live" (pending blinks)
+    /// but not spoofed (real face that hasn't blinked yet).
+    /// </summary>
+    public bool IsSpoofDetected { get; set; }
 
     // ─── Face Location ───
 
@@ -102,9 +110,18 @@ public class RecognitionResult
     {
         get
         {
-            if (!IsLive) return "SPOOF DETECTED";
-            if (IsRecognized && Person != null) return $"{Person.Name} ({SimilarityText})";
-            return $"Unknown ({SimilarityText})";
+            if (IsSpoofDetected)
+                return "SPOOF DETECTED";
+
+            string name;
+            if (IsRecognized && Person != null)
+                name = $"{Person.Name} ({SimilarityText})";
+            else
+                name = $"Unknown ({SimilarityText})";
+
+            if (!IsLive)
+                return name + " [!]";
+            return name;
         }
     }
 }

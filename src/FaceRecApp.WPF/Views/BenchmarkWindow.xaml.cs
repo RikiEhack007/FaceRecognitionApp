@@ -62,7 +62,7 @@ public partial class BenchmarkWindow : Window
             var total = await Task.Run(() =>
                 _benchmark.PopulateSyntheticDataAsync(count, samples));
 
-            ResultsText.Text = $"✅ Added {count} synthetic persons with {total} total embeddings.\n\n" +
+            ResultsText.Text = $"Added {count} synthetic persons with {total} total embeddings.\n\n" +
                                "Click 'Run Benchmarks' to test performance with this data.";
         }
         catch (Exception ex)
@@ -87,7 +87,7 @@ public partial class BenchmarkWindow : Window
         try
         {
             await Task.Run(() => _benchmark.CleanupSyntheticDataAsync());
-            ResultsText.Text = "✅ All synthetic benchmark data removed.";
+            ResultsText.Text = "All synthetic benchmark data removed.";
         }
         catch (Exception ex)
         {
@@ -107,7 +107,7 @@ public partial class BenchmarkWindow : Window
         CleanupBtn.IsEnabled = !busy;
 
         if (busy && message != null)
-            ResultsText.Text = $"⏳ {message}\n\nPlease wait...";
+            ResultsText.Text = $"{message}\n\nPlease wait...";
     }
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();

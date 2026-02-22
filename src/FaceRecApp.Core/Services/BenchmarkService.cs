@@ -171,36 +171,62 @@ public class BenchmarkService
 
     /// <summary>
     /// Populate the database with synthetic face embeddings for scale testing.
-    /// 
+    /// Uses batch inserts for high performance (~500 persons per SaveChanges).
+    ///
     /// WARNING: This adds fake data. Use only for benchmarking.
     /// </summary>
-    public async Task<int> PopulateSyntheticDataAsync(int personCount, int samplesPerPerson = 3)
+    /// <param name="personCount">Number of synthetic persons to create</param>
+    /// <param name="samplesPerPerson">Embeddings per person (default 1 for scale tests)</param>
+    /// <param name="progress">Optional callback: (inserted, total) for UI progress</param>
+    public async Task<int> PopulateSyntheticDataAsync(
+        int personCount,
+        int samplesPerPerson = 1,
+        Action<int, int>? progress = null)
     {
+        const int batchSize = 500;
         int totalInserted = 0;
+        var sw = Stopwatch.StartNew();
 
-        for (int i = 0; i < personCount; i++)
+        for (int batchStart = 0; batchStart < personCount; batchStart += batchSize)
         {
-            var embeddings = new List<float[]>();
-            for (int j = 0; j < samplesPerPerson; j++)
+            int batchEnd = Math.Min(batchStart + batchSize, personCount);
+
+            await using var db = await _dbFactory.CreateDbContextAsync();
+
+            for (int i = batchStart; i < batchEnd; i++)
             {
-                embeddings.Add(GenerateRandomVector(RecognitionSettings.EmbeddingDimensions));
+                var person = new Person
+                {
+                    Name = $"Synthetic Person #{i + 1:D6}",
+                    Notes = "Synthetic benchmark data -- safe to delete",
+                    CreatedAt = DateTime.UtcNow,
+                    LastSeenAt = DateTime.UtcNow,
+                    IsActive = true
+                };
+
+                for (int j = 0; j < samplesPerPerson; j++)
+                {
+                    person.FaceEmbeddings.Add(new FaceEmbedding
+                    {
+                        Embedding = GenerateRandomVector(RecognitionSettings.EmbeddingDimensions),
+                        CaptureAngle = "synthetic",
+                        CapturedAt = DateTime.UtcNow
+                    });
+                }
+
+                db.Persons.Add(person);
             }
 
-            await _repository.RegisterPersonAsync(
-                $"Synthetic Person #{i + 1:D5}",
-                embeddings,
-                notes: "Synthetic benchmark data — safe to delete");
+            await db.SaveChangesAsync();
+            totalInserted += (batchEnd - batchStart) * samplesPerPerson;
 
-            totalInserted += samplesPerPerson;
-
-            // Progress feedback every 100 persons
-            if ((i + 1) % 100 == 0)
-            {
-                System.Diagnostics.Debug.WriteLine(
-                    $"Populated {i + 1}/{personCount} persons ({totalInserted} embeddings)");
-            }
+            progress?.Invoke(batchEnd, personCount);
+            Console.WriteLine($"[Benchmark] Populated {batchEnd:N0}/{personCount:N0} persons " +
+                              $"({totalInserted:N0} embeddings, {sw.Elapsed.TotalSeconds:F1}s)");
         }
 
+        sw.Stop();
+        Console.WriteLine($"[Benchmark] Done: {personCount:N0} persons, {totalInserted:N0} embeddings in {sw.Elapsed.TotalSeconds:F1}s");
         return totalInserted;
     }
 
@@ -212,7 +238,8 @@ public class BenchmarkService
         await using var db = await _dbFactory.CreateDbContextAsync();
 
         var synthetics = await db.Persons
-            .Where(p => p.Notes == "Synthetic benchmark data — safe to delete"
+            .Where(p => p.Notes == "Synthetic benchmark data -- safe to delete"
+                     || p.Notes == "Synthetic benchmark data — safe to delete"
                      || (p.Notes != null && p.Notes.StartsWith("Benchmark test")))
             .ToListAsync();
 
@@ -280,7 +307,7 @@ public class BenchmarkReport
 
         if (!string.IsNullOrEmpty(Notes))
         {
-            sb.AppendLine($"  ⚠️ {Notes}");
+            sb.AppendLine($"  Note: {Notes}");
             sb.AppendLine();
         }
 

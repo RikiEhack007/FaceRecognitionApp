@@ -8,6 +8,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Anti-spoofing ONNX model (MiniFASNetV2, ~1.7MB) -->
+    <Content Include="Models\MiniFASNetV2.onnx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- ==================== Face AI ==================== -->
     <!-- FaceAiSharp: Face detection (SCRFD) + recognition (ArcFace) + eye state -->
     <!-- .Bundle version includes ONNX models bundled — zero extra setup -->
@@ -18,12 +25,12 @@
 
     <!-- ==================== Database ==================== -->
     <!-- EF Core 9 + SQL Server provider -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.4" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.4">
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.13" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.13">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.4">
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.13">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>
@@ -32,13 +39,13 @@
     <!-- Adds: SqlVector mapping, EF.Functions.VectorDistance() -->
     <!-- NOTE: When EF Core 10 releases (.NET 10, Nov 2026), this plugin becomes -->
     <!-- unnecessary — EF Core 10 has native SqlVector<float> built-in. -->
-    <PackageReference Include="EFCore.SqlServer.VectorSearch" Version="9.0.0-preview.2" />
+    <PackageReference Include="EFCore.SqlServer.VectorSearch" Version="9.0.0" />
 
     <!-- ==================== Image Processing ==================== -->
     <!-- ImageSharp: Cross-platform image library (no System.Drawing dependency) -->
     <!-- Required by FaceAiSharp — it works with Image<Rgb24> -->
-    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.7" />
-    <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.5" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+    <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.7" />
 
     <!-- ==================== OpenCvSharp (Core only, no WPF) ==================== -->
     <!-- Needed in Core because services accept OpenCvSharp.Mat as input. -->

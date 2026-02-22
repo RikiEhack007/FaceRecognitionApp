@@ -37,12 +37,12 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
 
     <!-- ==================== DI Container ==================== -->
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.4" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.4" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.13" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.13" />
 
     <!-- ==================== EF Core Tools ==================== -->
     <!-- Required by dotnet ef CLI when this project is the startup project -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.4">
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.13">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>

@@ -2,94 +2,63 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Performance Benchmarks"
-        Height="550" Width="650"
+        Height="560" Width="660"
         WindowStartupLocation="CenterOwner"
-        Background="#1E1E2E">
+        Background="{StaticResource BgPrimary}">
 
-    <Window.Resources>
-        <Style x:Key="ActionBtn" TargetType="Button">
-            <Setter Property="Background" Value="#45475A"/>
-            <Setter Property="Foreground" Value="#CDD6F4"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="14,8"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                CornerRadius="5" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#585B70"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.5"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-    </Window.Resources>
-
-    <Grid Margin="16">
+    <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="20"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="16"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="16"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Title -->
-        <TextBlock Grid.Row="0"
-                   Text="Performance Benchmarks"
-                   Foreground="#CDD6F4" FontSize="20" FontWeight="Bold"
-                   Margin="0,0,0,12"/>
+        <TextBlock Grid.Row="0" Text="Performance Benchmarks"
+                   Style="{StaticResource PageTitle}"/>
 
         <!-- Controls -->
-        <WrapPanel Grid.Row="1" Margin="0,0,0,12">
+        <WrapPanel Grid.Row="2">
             <Button x:Name="RunBenchmarkBtn"
                     Content="Run Benchmarks"
                     Click="OnRunBenchmark"
-                    Style="{StaticResource ActionBtn}"
-                    Background="#89B4FA" Foreground="#1E1E2E" FontWeight="SemiBold"
-                    Margin="0,0,8,0"/>
+                    Style="{StaticResource BtnPrimary}"
+                    Margin="0,0,8,6"/>
             <Button x:Name="PopulateBtn"
-                    Content="Add 100 Synthetic Faces"
+                    Content="Add 100 Synthetic"
                     Click="OnPopulate100"
-                    Style="{StaticResource ActionBtn}"
-                    Margin="0,0,8,0"/>
+                    Style="{StaticResource BtnBase}"
+                    Margin="0,0,8,6"/>
             <Button x:Name="Populate1kBtn"
                     Content="Add 1,000 Synthetic"
                     Click="OnPopulate1000"
-                    Style="{StaticResource ActionBtn}"
-                    Margin="0,0,8,0"/>
+                    Style="{StaticResource BtnBase}"
+                    Margin="0,0,8,6"/>
             <Button x:Name="CleanupBtn"
-                    Content="Cleanup Synthetic Data"
+                    Content="Cleanup Synthetic"
                     Click="OnCleanup"
-                    Style="{StaticResource ActionBtn}"
-                    Background="#F38BA8" Foreground="#1E1E2E"/>
+                    Style="{StaticResource BtnDanger}"
+                    Margin="0,0,0,6"/>
         </WrapPanel>
 
         <!-- Results -->
-        <Border Grid.Row="2" Background="#181825" CornerRadius="8" Padding="16">
+        <Border Grid.Row="4" Style="{StaticResource Card}">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <TextBlock x:Name="ResultsText"
-                           Text="Click 'Run Benchmarks' to start.&#10;&#10;For meaningful results, register some faces first or use the&#10;'Add Synthetic Faces' buttons to populate test data."
-                           Foreground="#A6ADC8"
-                           FontFamily="Cascadia Code, Consolas, monospace"
-                           FontSize="12"
+                           Text="Click Run Benchmarks to start.&#10;&#10;For meaningful results, register some faces first or use the&#10;Add Synthetic buttons to populate test data."
+                           Style="{StaticResource MonoText}"
                            TextWrapping="Wrap"
                            LineHeight="18"/>
             </ScrollViewer>
         </Border>
 
         <!-- Close -->
-        <Button Grid.Row="3" Content="Close" Click="OnClose"
-                Style="{StaticResource ActionBtn}"
-                HorizontalAlignment="Right" Margin="0,12,0,0"/>
+        <Button Grid.Row="6" Content="Close" Click="OnClose"
+                Style="{StaticResource BtnBase}"
+                HorizontalAlignment="Right"/>
     </Grid>
 </Window>

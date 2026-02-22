@@ -34,20 +34,30 @@ public static class OverlayRenderer
     /// <param name="isRecognized">Was the face matched to someone?</param>
     /// <param name="isHighConfidence">High confidence match?</param>
     /// <param name="isLive">Passed liveness check?</param>
+    /// <param name="isSpoofDetected">Per-face spoof detection flagged this face?</param>
     public static void DrawFaceResult(
         Mat frame,
         Rect box,
         string label,
         bool isRecognized,
         bool isHighConfidence = false,
-        bool isLive = true)
+        bool isLive = true,
+        bool isSpoofDetected = false)
     {
         // Choose color based on status
         Scalar color;
-        if (!isLive)
+        int thickness = 2;
+
+        if (isSpoofDetected)
         {
+            // Spoof: bright red with thick border — clearly distinct from "not yet live"
             color = Red;
-            label = "⚠ SPOOF DETECTED";
+            thickness = 3;
+        }
+        else if (!isLive)
+        {
+            // Not yet live (verifying) — orange border to distinguish from spoof (red)
+            color = Orange;
         }
         else if (isRecognized && isHighConfidence)
         {
@@ -62,17 +72,33 @@ public static class OverlayRenderer
             color = Orange;
         }
 
+        // Sanitize label — OpenCV putText only supports ASCII
+        label = SanitizeForOpenCv(label);
+
         // Draw bounding box
         Cv2.Rectangle(frame,
             new Point(box.X, box.Y),
             new Point(box.X + box.Width, box.Y + box.Height),
-            color, 2);
+            color, thickness);
+
+        // For spoof: draw X across the face box
+        if (isSpoofDetected)
+        {
+            Cv2.Line(frame,
+                new Point(box.X, box.Y),
+                new Point(box.X + box.Width, box.Y + box.Height),
+                Red, 2);
+            Cv2.Line(frame,
+                new Point(box.X + box.Width, box.Y),
+                new Point(box.X, box.Y + box.Height),
+                Red, 2);
+        }
 
         // Draw label background
         var fontScale = 0.55;
-        var thickness = 1;
+        var labelThickness = 1;
         var textSize = Cv2.GetTextSize(label, HersheyFonts.HersheySimplex,
-            fontScale, thickness, out var baseline);
+            fontScale, labelThickness, out var baseline);
 
         int labelY = Math.Max(box.Y - 5, textSize.Height + 10);
 
@@ -86,7 +112,7 @@ public static class OverlayRenderer
         Cv2.PutText(frame, label,
             new Point(box.X + 3, labelY - 2),
             HersheyFonts.HersheySimplex,
-            fontScale, White, thickness);
+            fontScale, White, labelThickness);
     }
 
     /// <summary>
@@ -122,12 +148,37 @@ public static class OverlayRenderer
     /// </summary>
     public static void DrawStatus(Mat frame, string message, bool isError = false)
     {
+        message = SanitizeForOpenCv(message);
         var color = isError ? Red : Green;
         var y = frame.Height - 15;
         Cv2.PutText(frame, message,
             new Point(10, y),
             HersheyFonts.HersheySimplex,
             0.5, color, 1);
+    }
+
+    /// <summary>
+    /// Strip non-ASCII characters from text before passing to OpenCV putText.
+    /// OpenCV's HersheyFonts only support ASCII; non-ASCII characters cause
+    /// ArgumentException ("Cannot marshal: Encountered unmappable character").
+    /// </summary>
+    private static string SanitizeForOpenCv(string text)
+    {
+        // Fast path: check if all characters are ASCII
+        bool allAscii = true;
+        foreach (var c in text)
+        {
+            if (c > 127) { allAscii = false; break; }
+        }
+        if (allAscii) return text;
+
+        // Slow path: replace non-ASCII with '?'
+        var chars = text.ToCharArray();
+        for (int i = 0; i < chars.Length; i++)
+        {
+            if (chars[i] > 127) chars[i] = '?';
+        }
+        return new string(chars);
     }
 
     /// <summary>

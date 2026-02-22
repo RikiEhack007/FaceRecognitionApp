@@ -1,0 +1,1280 @@
+
+ ▐▛███▜▌   Claude Code v2.1.41
+▝▜█████▛▘  Opus 4.6 · Claude Max
+  ▘▘ ▝▝    ~\Documents\Biometrics\FaceRecognitionApp\FaceRecognitionApp
+
+✻ Conversation compacted (ctrl+o for history)
+
+  ⎿  Read src\FaceRecApp.WPF\Views\RegisterWindow.xaml (93 lines)
+  ⎿  Read src\FaceRecApp.WPF\Views\MainWindow.xaml (211 lines)
+  ⎿  Read src\FaceRecApp.WPF\App.xaml (167 lines)
+  ⎿  Read src\FaceRecApp.WPF\Views\RegisterWindow.xaml.cs (148 lines)
+  ⎿  Read src\FaceRecApp.Core\Services\BenchmarkService.cs (343 lines)
+  ⎿  Plan file referenced (~\.claude\plans\enchanted-spinning-matsumoto.md)
+
+● I'll continue investigating the DiskANN VECTOR_SEARCH issue. Let me check the
+  current state of the repository and the SQL Server setup.
+
+● Read 2 files (ctrl+o to expand)
+
+● Explore(Find FaceRepository.cs location) Haiku 4.5
+  ⎿  Done (1 tool use · 13.1k tokens · 3s)
+  (ctrl+o to expand)
+
+● Read 2 files (ctrl+o to expand)
+
+● Let me check the current state of the DiskANN index and investigate the
+  VECTOR_SEARCH issue.
+
+● Bash(sqlcmd -S "localhost,60240" -E -C -Q "SELECT i.name, i.type_desc,
+      i.is_disabled FROM sys.indexes i JOIN sys.tables t ON i.object_id =
+      t.object_id WHERE t.name =…)
+  ⎿  name
+                                                                type_desc
+                                                       is_disabled
+     … +5 lines (ctrl+o to expand)
+
+● Bash(sqlcmd -S "localhost,60240" -E -C -Q "SELECT
+      SERVERPROPERTY('ProductVersion') AS Version, SERVERPROPERTY('Edition') AS
+      Edition, SERVERPROPERTY('ProductLevel') A…)
+  ⎿  Version
+     … +1027 lines (ctrl+o to expand)
+
+● The vector index doesn't exist anymore (0 rows). Let me check the SQL Server
+  version properly and then recreate the index.
+
+● Bash(sqlcmd -S "localhost,60240" -E -C -Q "SELECT
+      CAST(SERVERPROPERTY('ProductVersion') AS VARCHAR(50)) AS Version,
+      CAST(SERVERPROPERTY('Edition') AS VARCHAR(100)) A…)
+  ⎿  Version Edition
+     ------- -------
+     17.0.1000.7 Express Edition (64-bit)
+     … +2 lines (ctrl+o to expand)
+
+● Bash(sqlcmd -S "localhost,60240" -E -C -Q "SELECT COUNT(*) AS EmbeddingCount
+      FROM FaceRecognitionDb.dbo.FaceEmbeddings;" -W)
+  ⎿  EmbeddingCount
+     --------------
+     100001
+     … +2 lines (ctrl+o to expand)
+
+● Good — 100K embeddings still there. Now let me research whether VECTOR_SEARCH
+  TVF is supported on SQL Server 2025 Express Edition.
+
+● Web Search("SQL Server 2025 Express Edition VECTOR_SEARCH TVF DiskANN
+            limitations")
+  ⎿  Did 1 search in 8s
+
+● Critical finding — the DiskANN index makes tables read-only. Let me get the
+  exact syntax and requirements from the docs.
+
+● Fetch(https://learn.microsoft.com/en-us/sql/t-sql/functions/vector-search-tran
+       sact-sql?view=sql-server-ver17)
+  ⎿  Received 11.5KB (200 OK)
+
+● Fetch(https://learn.microsoft.com/en-us/sql/t-sql/statements/create-vector-ind
+       ex-transact-sql?view=sql-server-ver17)
+  ⎿  Received 11.8KB (200 OK)
+
+● Now I have the full picture. There are critical limitations I need to handle.
+  Let me check the table structure first.
+
+● Bash(sqlcmd -S "localhost,60240" -E -C -d FaceRecognitionDb -Q "SELECT c.name,
+       c.column_id, tp.name AS type_name, c.max_length, i.is_primary_key,
+      i.type_desc AS inde…)
+  ⎿  name column_id type_name max_length is_primary_key index_type
+     ---- --------- --------- ---------- -------------- ----------
+     Id 1 int 4 1 CLUSTERED
+     … +11 lines (ctrl+o to expand)
+
+● Good — Id is a single-column integer primary key with a clustered index. The
+  table meets all requirements. Let me verify PREVIEW_FEATURES is enabled and
+  try creating the index + using VECTOR_SEARCH with the exact syntax from the
+  docs.
+
+● Bash(sqlcmd -S "localhost,60240" -E -C -d FaceRecognitionDb -Q "SELECT name,
+      value FROM sys.database_scoped_configurations WHERE name =
+      'PREVIEW_FEATURES';" -W)
+  ⎿  name value
+     ---- -----
+     PREVIEW_FEATURES 1
+     … +2 lines (ctrl+o to expand)
+
+● Good. Now let me create the vector index and test VECTOR_SEARCH with the exact
+   documented syntax.
+
+● Bash(sqlcmd -S "localhost,60240" -E -C -d FaceRecognitionDb -Q "SET
+      QUOTED_IDENTIFIER ON; CREATE VECTOR INDEX IX_FaceEmbeddings_Vector ON
+      dbo.FaceEmbeddings(Embeddin…)
+  ⎿  Msg 1913, Level 16, State 203, Server DESKTOP-BOD610M\SQLEXPRESS01, Li
+     ne 1
+     The operation failed because an index or statistics with name 'IX_Face
+     Embeddings_Vector' already exists on table 'dbo.FaceEmbeddings'.
+
+● It exists after all. Let me check all indexes on that table more carefully.
+
+● Bash(sqlcmd -S "localhost,60240" -E -C -d FaceRecognitionDb -Q "SELECT i.name,
+       i.type, i.type_desc, i.is_disabled FROM sys.indexes i WHERE i.object_id =
+       OBJECT_ID('d…)
+  ⎿  name type type_desc is_disabled
+     ---- ---- --------- -----------
+     PK_FaceEmbeddings 1 CLUSTERED 0
+     … +4 lines (ctrl+o to expand)
+
+● The vector index exists but is disabled (is_disabled = 1). That's why
+  VECTOR_SEARCH couldn't find it. Let me rebuild it to enable it.
+
+● Bash(sqlcmd -S "localhost,60240" -E -C -d FaceRecognitionDb -Q "SET
+      QUOTED_IDENTIFIER ON; ALTER INDEX IX_FaceEmbeddings_Vector ON
+      dbo.FaceEmbeddings REBUILD;" -W)
+  ⎿  Msg 42250, Level 16, State 1, Server DESKTOP-BOD610M\SQLEXPRESS01, Lin
+     e 1
+     One or more of the specified ALTER INDEX options is unsupported for a
+     Vector Index.
+
+● Can't REBUILD a vector index. Let me drop and recreate it.
+
+● Bash(sqlcmd -S "localhost,60240" -E -C -d FaceRecognitionDb -Q "DROP INDEX
+      IX_FaceEmbeddings_Vector ON dbo.FaceEmbeddings;" -W)
+  ⎿  (No output)
+
+● Bash(sqlcmd -S "localhost,60240" -E -C -d FaceRecognitionDb -Q "SET
+      QUOTED_IDENTIFIER ON; CREATE VECTOR INDEX IX_FaceEmbeddings_Vector ON
+      dbo.FaceEmbeddings(Embeddin…)
+  ⎿  Running in the background (↓ to manage)
+  ⎿  (timeout 5m)
+
+● Task Output b52ef6f
+  ⎿  (No output)
+
+● The index is taking a while to build with 100K records. Let me wait more.
+
+● Task Output b52ef6f
+  ⎿  (No output)
+
+● Task Output b52ef6f
+  ⎿  Warning: The join order has been enforced because a local join hint is
+      used.
+
+● Index created successfully. Let me verify it's enabled and then test
+  VECTOR_SEARCH.
+
+● Bash(sqlcmd -S "localhost,60240" -E -C -d FaceRecognitionDb -Q "SELECT i.name,
+       i.type, i.type_desc, i.is_disabled FROM sys.indexes i WHERE i.object_id =
+       OBJECT_ID('d…)
+  ⎿  name type type_desc is_disabled
+     ---- ---- --------- -----------
+     IX_FaceEmbeddings_Vector 8 VECTOR 0
+     … +2 lines (ctrl+o to expand)
+
+● Index is enabled now (is_disabled = 0). Now let me test VECTOR_SEARCH with the
+   documented syntax.
+
+● Bash(sqlcmd -S "localhost,60240" -E -C -d FaceRecognitionDb -Q "
+      DECLARE @qv VECTOR(512);…)
+  ⎿  Msg 13609, Level 16, State 9, Server DESKTOP-BOD610M\SQLEXPRESS01, Lin
+     e 3
+     JSON text is not properly formatted. Unexpected character '' is found
+     at position 0.
+
+● The VECTOR(512) construction from binary doesn't work that way. Let me create
+  a proper query vector.
+
+● Bash(sqlcmd -S "localhost,60240" -E -C -d FaceRecognitionDb -Q "
+      -- Get a real embedding to use as query vector…)
+  ⎿  Id PersonId distance
+     -- -------- --------
+     11 6 0.0
+     … +2 lines (ctrl+o to expand)
+
+● VECTOR_SEARCH works now! The index was disabled last time, which was the root
+  cause. Let me benchmark the speed difference.
+
+● Bash(sqlcmd -S "localhost,60240" -E -C -d FaceRecognitionDb -Q "
+      -- Benchmark: VECTOR_SEARCH with DiskANN index (ANN)…)
+  ⎿   SQL Server Execution Times:
+        CPU time = 0 ms,  elapsed time = 0 ms.
+     Id PersonId distance
+     … +7 lines (ctrl+o to expand)
+
+● Bash(sqlcmd -S "localhost,60240" -E -C -d FaceRecognitionDb -Q "
+      -- Benchmark: Brute-force ORDER BY VECTOR_DISTANCE (KNN)…)
+  ⎿   SQL Server Execution Times:
+        CPU time = 0 ms,  elapsed time = 0 ms.
+     Id PersonId Distance
+     … +7 lines (ctrl+o to expand)
+
+● Excellent! 147ms (DiskANN ANN) vs 373ms (brute-force KNN). Let me run a few
+  more iterations to get a better comparison, and also test without the warm-up
+  effect.
+
+● Bash(sqlcmd -S "localhost,60240" -E -C -d FaceRecognitionDb -Q "
+      SET STATISTICS TIME ON;…)
+  ⎿   SQL Server Execution Times:
+        CPU time = 0 ms,  elapsed time = 0 ms.
+     Id distance
+     … +40 lines (ctrl+o to expand)
+
+● Bash(sqlcmd -S "localhost,60240" -E -C -d FaceRecognitionDb -Q "
+      SET STATISTICS TIME ON;…)
+  ⎿   SQL Server Execution Times:
+        CPU time = 0 ms,  elapsed time = 0 ms.
+     Id d
+     … +40 lines (ctrl+o to expand)
+
+● Interesting results. Let me check one more thing — whether ORDER BY 
+  VECTOR_DISTANCE() can use the DiskANN index automatically.
+
+● Bash(sqlcmd -S "localhost,60240" -E -C -d FaceRecognitionDb -Q "
+      SET STATISTICS IO ON;…)
+  ⎿  Table 'FaceEmbeddings'. Scan count 0, logical reads 3, physical reads
+     3, page server reads 0, read-ahead reads 0, page server read-ahead rea
+     ds 0, lob logical reads 0, lob physical reads 0, lob page server reads
+     … +20 lines (ctrl+o to expand)
+
+● Bash(sqlcmd -S "localhost,60240" -E -C -d FaceRecognitionDb -Q "
+      SET STATISTICS IO ON;…)
+  ⎿  Table 'FaceEmbeddings'. Scan count 0, logical reads 3, physical reads
+     3, page server reads 0, read-ahead reads 0, page server read-ahead rea
+     ds 0, lob logical reads 0, lob physical reads 0, lob page server reads
+     … +18 lines (ctrl+o to expand)
+
+● Clear difference in IO: 2,118 logical reads (DiskANN) vs 33,460 logical reads 
+  (brute-force). DiskANN reads 16x fewer pages. Let me run a proper warm-cache
+  comparison.
+
+● Bash(sqlcmd -S "localhost,60240" -E -C -d FaceRecognitionDb -Q "
+      -- Warmup both paths…)
+  ⎿  Id
+     --
+     … +45 lines (ctrl+o to expand)
+
+● Now the results are clear with warm cache:
+
+  ┌─────────────────────────┬───────┬───────┬───────┬───────┬───────┬─────────┐
+  │         Method          │ Run 1 │ Run 2 │ Run 3 │ Run 4 │ Run 5 │ Average │
+  ├─────────────────────────┼───────┼───────┼───────┼───────┼───────┼─────────┤
+  │ DiskANN (VECTOR_SEARCH) │ 8ms   │ 3ms   │ 5ms   │ 5ms   │ 5ms   │ ~5ms    │
+  ├─────────────────────────┼───────┼───────┼───────┼───────┼───────┼─────────┤
+  │ Brute-force (ORDER BY)  │ 72ms  │ 71ms  │ 74ms  │ 71ms  │ 84ms  │ ~74ms   │
+  └─────────────────────────┴───────┴───────┴───────┴───────┴───────┴─────────┘
+
+  DiskANN is ~15x faster with warm cache. Now let me integrate this into the
+  app. I need to modify FaceRepository to use VECTOR_SEARCH TVF via raw SQL.
+  However, there's a critical limitation: the table becomes read-only with the 
+  DiskANN index present. I'll handle both modes.
+
+● Read 2 files (ctrl+o to expand)
+
+● Now I understand the full picture. Let me modify FaceRepository to use
+  VECTOR_SEARCH TVF with raw SQL when the DiskANN index is available. The key
+  challenge is that VECTOR_SEARCH returns flat rows (no EF navigation
+  properties), so I need to join with Persons manually.
+
+● Read 2 files (ctrl+o to expand)
+
+● Now I'll modify FaceRepository to use VECTOR_SEARCH TVF. The approach:
+
+  1. At startup, check if the DiskANN index exists
+  2. If yes, use VECTOR_SEARCH TVF (raw SQL) — ~5ms at 100K
+  3. If no, fall back to ORDER BY VECTOR_DISTANCE (EF Core LINQ) — ~75ms at 100K
+
+● Update(src\FaceRecApp.Core\Services\FaceRepository.cs)
+  ⎿  Added 134 lines, removed 41 lines
+       1 +using System.Text;                                             
+       2 +using System.Text.Json;                                        
+       3  using FaceRecApp.Core.Data;                                    
+       4  using FaceRecApp.Core.Entities;                                
+       5 +using Microsoft.Data.SqlClient;                                
+       6  using Microsoft.EntityFrameworkCore;                           
+       7                                                                 
+       8  namespace FaceRecApp.Core.Services;                            
+       9                                                                 
+      10  /// <summary>                                                  
+      11  /// Database repository for face recognition operations.       
+      12 -///                                                            
+      12 +///                                                            
+      13  /// This is where the SQL Server 2025 vector magic happens.    
+      14 -///                                                            
+      14 +///                                                            
+      15  /// Key operations:                                            
+      16 -///   - FindClosestMatch(): Uses VECTOR_DISTANCE('cosine',     
+         -...) to find the nearest                                       
+      17 -///     face embedding in the database — this runs INSIDE SQL  
+         -Server, not in C#.                                             
+      16 +///   - FindClosestMatch(): Uses VECTOR_SEARCH (DiskANN ANN)   
+         +or                                                             
+      17 +///     VECTOR_DISTANCE (brute-force KNN) depending on whether 
+         + the                                                           
+      18 +///     DiskANN vector index exists.                           
+      19  ///   - RegisterPerson(): Stores a new person with their face  
+          embedding(s).                                                  
+      20  ///   - AddFaceSample(): Adds additional face embeddings for   
+          better accuracy.                                               
+      21 -///                                                            
+      22 -/// Why a repository pattern?                                  
+      23 -///   - Separates database logic from business logic           
+      24 -///   - Makes it easy to swap SQL Server for another database  
+         -(e.g., PostgreSQL + pgvector)                                  
+      25 -///   - Simplifies unit testing with mock/in-memory database   
+      26 -///                                                            
+      21 +///                                                            
+      22  /// Thread safety:                                             
+      23  ///   Uses IDbContextFactory to create short-lived DbContext   
+          instances per operation.                                       
+      24  ///   This is safe for concurrent access from multiple         
+          threads.                                                       
+     ...
+       27  public class FaceRepository                                   
+       28  {                                                             
+       29      private readonly IDbContextFactory<FaceDbContext>         
+           _dbFactory;                                                   
+       30 +    private bool _useVectorSearch;                            
+       31                                                                
+       32      public FaceRepository(IDbContextFactory<FaceDbContext>    
+           dbFactory)                                                    
+       33      {                                                         
+       34          _dbFactory = dbFactory;                               
+       35      }                                                         
+       36                                                                
+       37 +    /// <summary>                                             
+       38 +    /// Check if the DiskANN vector index exists and is       
+          +enabled.                                                      
+       39 +    /// When true, FindClosestMatchAsync uses the faster      
+          +VECTOR_SEARCH TVF.                                            
+       40 +    /// Call this at startup or after creating/dropping the   
+          +index.                                                        
+       41 +    /// </summary>                                            
+       42 +    public async Task DetectVectorIndexAsync()                
+       43 +    {                                                         
+       44 +        try                                                   
+       45 +        {                                                     
+       46 +            await using var db = await                        
+          +_dbFactory.CreateDbContextAsync();                            
+       47 +            var count = await db.Database.SqlQueryRaw<int>(   
+       48 +                @"SELECT COUNT(*) AS [Value] FROM sys.indexes 
+          + i                                                            
+       49 +                  JOIN sys.tables t ON i.object_id =          
+          +t.object_id                                                   
+       50 +                  WHERE t.name = 'FaceEmbeddings' AND         
+          +i.type_desc = 'VECTOR' AND i.is_disabled = 0"                 
+       51 +            ).FirstOrDefaultAsync();                          
+       52 +                                                              
+       53 +            _useVectorSearch = count > 0;                     
+       54 +            Console.WriteLine($"[Repository] DiskANN index    
+          +detected: {_useVectorSearch}");                               
+       55 +        }                                                     
+       56 +        catch                                                 
+       57 +        {                                                     
+       58 +            _useVectorSearch = false;                         
+       59 +        }                                                     
+       60 +    }                                                         
+       61 +                                                              
+       62 +    /// <summary>Whether the DiskANN VECTOR_SEARCH path is    
+          +active.</summary>                                             
+       63 +    public bool UseVectorSearch => _useVectorSearch;          
+       64 +                                                              
+       65      // ══════════════════════════════════════════════         
+       66      //  VECTOR SEARCH — The core matching operation           
+       67      // ══════════════════════════════════════════════         
+       68                                                                
+       69      /// <summary>                                             
+       70      /// Find the closest matching face embedding in the       
+           database.                                                     
+       71 -    ///                                                       
+       72 -    /// This is the heart of the recognition system. It:      
+       73 -    ///   1. Takes a query embedding (from a live camera      
+          -frame)                                                        
+       74 -    ///   2. Sends it to SQL Server                           
+       75 -    ///   3. SQL Server computes VECTOR_DISTANCE('cosine',    
+          -stored, query)                                                
+       76 -    ///      for every embedding in the database              
+       77 -    ///   4. Returns the closest match (smallest distance)    
+       78 -    ///                                                       
+       79 -    /// The generated SQL looks like:                         
+       80 -    ///   SELECT TOP(1) e.*, p.*,                             
+       81 -    ///     VECTOR_DISTANCE('cosine', e.Embedding,            
+          -@queryVector) AS Distance                                     
+       82 -    ///   FROM FaceEmbeddings e                               
+       83 -    ///   JOIN Persons p ON e.PersonId = p.Id                 
+       84 -    ///   WHERE p.IsActive = 1                                
+       85 -    ///   ORDER BY Distance ASC                               
+       86 -    ///                                                       
+       87 -    /// Performance:                                          
+       88 -    ///   - 100 faces:   ~1ms                                 
+       89 -    ///   - 1,000 faces:  ~3ms                                
+       90 -    ///   - 10,000 faces: ~10ms (with DiskANN index: ~2ms)    
+       71 +    ///                                                       
+       72 +    /// Two execution paths:                                  
+       73 +    ///   1. DiskANN (VECTOR_SEARCH TVF): ~5ms at 100K rows — 
+          + approximate nearest neighbor                                 
+       74 +    ///   2. Brute-force (ORDER BY VECTOR_DISTANCE): ~75ms at 
+          + 100K rows — exact KNN                                        
+       75 +    ///                                                       
+       76 +    /// The DiskANN path is used automatically when a vector  
+          +index exists.                                                 
+       77 +    /// Note: DiskANN indexes make the table read-only in SQL 
+          + Server 2025.                                                 
+       78      /// </summary>                                            
+       79 -    /// <param name="queryEmbedding">512-dim float array from 
+          - FaceRecognitionService</param>                               
+       80 -    /// <returns>Match result with person info and distance,  
+          -or null if DB is empty</returns>                              
+       79      public async Task<FaceMatchResult?>                       
+           FindClosestMatchAsync(float[] queryEmbedding)                 
+       80      {                                                         
+       81 +        if (_useVectorSearch)                                 
+       82 +        {                                                     
+       83 +            try                                               
+       84 +            {                                                 
+       85 +                return await                                  
+          +FindClosestMatchVectorSearchAsync(queryEmbedding);            
+       86 +            }                                                 
+       87 +            catch (SqlException)                              
+       88 +            {                                                 
+       89 +                // Index may have been dropped — fall back to 
+          + brute-force                                                  
+       90 +                _useVectorSearch = false;                     
+       91 +            }                                                 
+       92 +        }                                                     
+       93 +                                                              
+       94 +        return await                                          
+          +FindClosestMatchBruteForceAsync(queryEmbedding);              
+       95 +    }                                                         
+       96 +                                                              
+       97 +    /// <summary>                                             
+       98 +    /// DiskANN approximate nearest neighbor search via       
+          +VECTOR_SEARCH TVF.                                            
+       99 +    /// Requires the DiskANN vector index on                  
+          +FaceEmbeddings.Embedding.                                     
+      100 +    /// </summary>                                            
+      101 +    private async Task<FaceMatchResult?>                      
+          +FindClosestMatchVectorSearchAsync(float[] queryEmbedding)     
+      102 +    {                                                         
+      103          await using var db = await                            
+           _dbFactory.CreateDbContextAsync();                            
+      104                                                                
+      105 -        // ⭐ THE KEY QUERY: SQL Server 2025 vector distance  
+          -search                                                        
+      106 -        //                                                    
+      107 -        // EF.Functions.VectorDistance() is translated by the 
+          - EFCore.SqlServer.VectorSearch                                
+      108 -        // plugin into:  VECTOR_DISTANCE('cosine',            
+          -[Embedding], @p0)                                             
+      109 -        //                                                    
+      110 -        // This runs entirely inside SQL Server — no data     
+          -comes back to C# for comparison.                              
+      111 -        // SQL Server's query engine is optimized for this    
+          -operation.                                                    
+      105 +        var vectorJson = EmbeddingToJson(queryEmbedding);     
+      106 +                                                              
+      107 +        // VECTOR_SEARCH returns top N by the DiskANN graph   
+          +traversal (~5ms at 100K).                                     
+      108 +        // We request more than 1 because some may belong to  
+          +inactive persons.                                             
+      109 +        var results = await                                   
+          +db.Database.SqlQueryRaw<VectorSearchRow>(                     
+      110 +            @"DECLARE @qv VECTOR(512) = CAST(@p0 AS           
+          +VECTOR(512));                                                 
+      111 +              SELECT t.Id, t.PersonId, s.distance AS Distance 
+      112 +              FROM VECTOR_SEARCH(                             
+      113 +                  TABLE = dbo.FaceEmbeddings AS t,            
+      114 +                  COLUMN = Embedding,                         
+      115 +                  SIMILAR_TO = @qv,                           
+      116 +                  METRIC = 'cosine',                          
+      117 +                  TOP_N = 10                                  
+      118 +              ) AS s                                          
+      119 +              ORDER BY s.distance",                           
+      120 +            new SqlParameter("@p0", vectorJson)               
+      121 +        ).ToListAsync();                                      
+      122 +                                                              
+      123 +        if (results.Count == 0)                               
+      124 +            return null;                                      
+      125 +                                                              
+      126 +        // Join with Persons to filter by IsActive and get    
+          +person info                                                   
+      127 +        var personIds = results.Select(r =>                   
+          +r.PersonId).Distinct().ToList();                              
+      128 +        var persons = await db.Persons                        
+      129 +            .Where(p => personIds.Contains(p.Id) &&           
+          +p.IsActive)                                                   
+      130 +            .ToDictionaryAsync(p => p.Id);                    
+      131 +                                                              
+      132 +        foreach (var row in results)                          
+      133 +        {                                                     
+      134 +            if (persons.TryGetValue(row.PersonId, out var     
+          +person))                                                      
+      135 +            {                                                 
+      136 +                return new FaceMatchResult                    
+      137 +                {                                             
+      138 +                    Person = person,                          
+      139 +                    FaceEmbedding = new FaceEmbedding { Id =  
+          +row.Id, PersonId = row.PersonId },                            
+      140 +                    Distance = (float)row.Distance,           
+      141 +                    IsMatch = row.Distance <=                 
+          +RecognitionSettings.DistanceThreshold                         
+      142 +                };                                            
+      143 +            }                                                 
+      144 +        }                                                     
+      145 +                                                              
+      146 +        return null;                                          
+      147 +    }                                                         
+      148 +                                                              
+      149 +    /// <summary>                                             
+      150 +    /// Brute-force exact nearest neighbor search via ORDER   
+          +BY VECTOR_DISTANCE.                                           
+      151 +    /// Works without any vector index. Scans all rows.       
+      152 +    /// </summary>                                            
+      153 +    private async Task<FaceMatchResult?>                      
+          +FindClosestMatchBruteForceAsync(float[] queryEmbedding)       
+      154 +    {                                                         
+      155 +        await using var db = await                            
+          +_dbFactory.CreateDbContextAsync();                            
+      156 +                                                              
+      157          var match = await db.FaceEmbeddings                   
+      158              .Include(e => e.Person)                           
+      159 -            .Where(e => e.Person.IsActive)                    
+          -  // Only search active persons                               
+      159 +            .Where(e => e.Person.IsActive)                    
+      160              .Select(e => new                                  
+      161              {                                                 
+      162                  Embedding = e,                                
+      163                  Distance =                                    
+           EF.Functions.VectorDistance("cosine", e.Embedding,            
+           queryEmbedding)                                               
+      164              })                                                
+      165 -            .OrderBy(x => x.Distance)                         
+          -  // Closest first (smallest distance)                        
+      165 +            .OrderBy(x => x.Distance)                         
+      166              .FirstOrDefaultAsync();                           
+      167                                                                
+      168          if (match == null)                                    
+     ...
+       96          };                                                    
+       97      }                                                         
+       98                                                                
+       99 +    private static string EmbeddingToJson(float[] embedding)  
+      100 +    {                                                         
+      101 +        var sb = new StringBuilder(embedding.Length * 12);    
+      102 +        sb.Append('[');                                       
+      103 +        for (int i = 0; i < embedding.Length; i++)            
+      104 +        {                                                     
+      105 +            if (i > 0) sb.Append(',');                        
+      106 +            sb.Append(embedding[i].ToString("G9"));           
+      107 +        }                                                     
+      108 +        sb.Append(']');                                       
+      109 +        return sb.ToString();                                 
+      110 +    }                                                         
+      111 +                                                              
+      112      /// <summary>                                             
+      113      /// Find the top N closest matches (for debugging or when 
+            multiple people look similar).                               
+      114      /// </summary>                                            
+
+● Now I need to add the VectorSearchRow DTO and update FindTopMatchesAsync
+  similarly.
+
+● Read 1 file (ctrl+o to expand)
+
+● Now I need to add the VectorSearchRow DTO class. Let me add it alongside the
+  other DTOs at the bottom of the file.
+
+● Update(src\FaceRecApp.Core\Services\FaceRepository.cs)
+  ⎿  Added 10 lines
+      575      public float AverageSamplesPerPerson { get; set; }        
+      576      public float RecognitionRate { get; set; }                
+      577  }                                                             
+      578 +                                                              
+      579 +/// <summary>                                                 
+      580 +/// Row returned by VECTOR_SEARCH TVF raw SQL query.          
+      581 +/// </summary>                                                
+      582 +public class VectorSearchRow                                  
+      583 +{                                                             
+      584 +    public int Id { get; set; }                               
+      585 +    public int PersonId { get; set; }                         
+      586 +    public double Distance { get; set; }                      
+      587 +}                                                             
+
+● Now I need to call DetectVectorIndexAsync() at startup. Let me check the
+  App.xaml.cs.
+
+● Read 1 file (ctrl+o to expand)
+
+● I need to handle the fact that FaceRepository is registered as transient but
+  RecognitionPipeline holds one instance. Let me make the _useVectorSearch flag
+  static so it's shared across all instances, and add the detection call at
+  startup.
+
+● Update(src\FaceRecApp.Core\Services\FaceRepository.cs)
+  ⎿  Added 1 line, removed 1 line
+      26  public class FaceRepository                                    
+      27  {                                                              
+      28      private readonly IDbContextFactory<FaceDbContext>          
+          _dbFactory;                                                    
+      29 -    private bool _useVectorSearch;                             
+      29 +    private static volatile bool _useVectorSearch;             
+      30                                                                 
+      31      public FaceRepository(IDbContextFactory<FaceDbContext>     
+          dbFactory)                                                     
+      32      {                                                          
+
+● Now add the DetectVectorIndexAsync call to App.xaml.cs inside
+  InitializeDatabase.
+
+● Update(src\FaceRecApp.WPF\App.xaml.cs)
+  ⎿  Added 4 lines
+      85              var dbFactory = scope.ServiceProvider.GetRequiredS 
+          ervice<IDbContextFactory<FaceDbContext>>();                    
+      86              using var db = dbFactory.CreateDbContext();        
+      87              db.Database.Migrate();                             
+      88 +                                                               
+      89 +            // Detect DiskANN vector index for faster          
+         +VECTOR_SEARCH                                                  
+      90 +            var repo =                                         
+         +Services.GetRequiredService<FaceRepository>();                 
+      91 +                                                               
+         +repo.DetectVectorIndexAsync().GetAwaiter().GetResult();        
+      92          }                                                      
+      93          catch (Exception ex)                                   
+      94          {                                                      
+
+● Now let me build to check for errors.
+
+● Bash(cd "C:\Users\Turtle\Documents\Biometrics\FaceRecognitionApp\FaceRecogniti
+      onApp" && dotnet build --no-restore 2>&1 | tail -30)
+  ⎿    FaceRecApp.Core -> C:\Users\Turtle\Documents\Biometrics\FaceRecognit
+     ionApp\FaceRecognitionApp\src\FaceRecApp.Core\bin\Debug\net9.0\FaceRec
+     App.Core.dll
+     … +30 lines (ctrl+o to expand)
+  ⎿  (timeout 2m)
+
+● Build succeeded with 0 errors. Now let me also update the MainViewModel to
+  show which search mode is active, so the user can see the DiskANN status in
+  the UI.
+
+● Read 1 file (ctrl+o to expand)
+
+● Let me update the database stats display to show the search mode.
+
+● Update(src\FaceRecApp.WPF\ViewModels\MainViewModel.cs)
+  ⎿  Added 3 lines, removed 2 lines
+      374          {                                                     
+      375              var repo =                                        
+           App.Services.GetRequiredService<FaceRepository>();            
+      376              var stats = await repo.GetStatsAsync();           
+      377 +            var searchMode = repo.UseVectorSearch ? "DiskANN" 
+          + : "KNN";                                                     
+      378              _dispatcher.Invoke(() =>                          
+      379              {                                                 
+      380 -                DatabaseText = $"Database                     
+          -: {stats.TotalPersons} persons, " +                           
+      381 -                               $"{stats.TotalEmbeddings}      
+          -samples";                                                     
+      380 +                DatabaseText = $"DB                           
+          +: {stats.TotalPersons} persons, " +                           
+      381 +                               $"{stats.TotalEmbeddings}      
+          +samples [{searchMode}]";                                      
+      382              });                                               
+      383          }                                                     
+      384          catch { }                                             
+
+● Now let me build again to make sure everything compiles.
+
+● Bash(cd "C:\Users\Turtle\Documents\Biometrics\FaceRecognitionApp\FaceRecogniti
+      onApp" && dotnet build --no-restore 2>&1 | tail -10)
+  ⎿    FaceRecApp.Core -> C:\Users\Turtle\Documents\Biometrics\FaceRecognit
+     ionApp\FaceRecognitionApp\src\FaceRecApp.Core\bin\Debug\net9.0\FaceRec
+     App.Core.dll
+     … +12 lines (ctrl+o to expand)
+  ⎿  (timeout 2m)
+
+● Build succeeded with 0 errors, 0 warnings. Here's a summary of what was done
+  and the current state:
+
+  DiskANN Vector Index — Status
+
+  The DiskANN index is now created and working. The previous issue was that the
+  index existed but was disabled (is_disabled = 1). I dropped and recreated it,
+  and it's now active.
+
+  Benchmark Results (100K embeddings, warm cache)
+
+  ┌─────────────────────────┬─────────────┬───────────────┐
+  │         Method          │ Avg Latency │ Logical Reads │
+  ├─────────────────────────┼─────────────┼───────────────┤
+  │ DiskANN (VECTOR_SEARCH) │ ~5ms        │ 2,118 pages   │
+  ├─────────────────────────┼─────────────┼───────────────┤
+  │ Brute-force (ORDER BY)  │ ~75ms       │ 33,460 pages  │
+  └─────────────────────────┴─────────────┴───────────────┘
+
+  DiskANN is ~15x faster and reads 16x fewer pages.
+
+  Code Changes
+
+  FaceRepository.cs — Two search paths:
+  - DiskANN path: Uses VECTOR_SEARCH TVF via raw SQL when the index is detected
+  - Brute-force fallback: Uses EF Core ORDER BY VECTOR_DISTANCE() when no index
+  exists
+  - Auto-detects which mode to use at startup via DetectVectorIndexAsync()
+  - Falls back gracefully if the index is dropped mid-session
+
+  App.xaml.cs — Calls DetectVectorIndexAsync() at startup
+
+  MainViewModel.cs — Shows [DiskANN] or [KNN] in the database status bar
+
+  Important Limitation
+
+  DiskANN makes the FaceEmbeddings table read-only in SQL Server 2025. This 
+  means:
+  - You cannot register new faces while the index exists
+  - To register, you'd need to: DROP index → INSERT → CREATE index (takes ~10
+  min at 100K)
+  - The ALLOW_STALE_VECTOR_INDEX option is only available in Azure SQL Database,
+   not SQL Server 2025 on-premises
+
+  For now, the app will automatically detect the index and use it. If you need
+  to register a new face and the table is read-only, you can drop the index
+  with:
+  DROP INDEX IX_FaceEmbeddings_Vector ON dbo.FaceEmbeddings;
+
+  Sources:
+  - https://learn.microsoft.com/en-us/sql/t-sql/functions/vector-search-transact
+  -sql?view=sql-server-ver17
+  - https://learn.microsoft.com/en-us/sql/t-sql/statements/create-vector-index-t
+  ransact-sql?view=sql-server-ver17
+
+✻ Brewed for 1h 6m 12s
+
+● Background command "Recreate DiskANN vector index on 100K embeddings"
+completed (exit code 0)
+
+● That's the background task confirmation for the CREATE VECTOR INDEX command
+  that already completed earlier — the index was successfully created and I've
+  already integrated it into the app. Everything is built and ready to run.
+
+❯ 'FaceRecApp.WPF.exe' (CoreCLR: DefaultDomain): Loaded 'C:\Program Files\d 
+  otnet\shared\Microsoft.NETCore.App\9.0.3\System.Private.CoreLib.dll'.     
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded                           
+  'C:\Users\Turtle\Documents\Biometrics\FaceRecognitionApp\FaceRecognitionA 
+  pp\src\FaceRecApp.WPF\bin\Debug\net9.0-windows\FaceRecApp.WPF.dll'.       
+  Symbols loaded.                                                           
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.WindowsDesktop.App\9.0.3\PresentationFramework.dll'.     
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program               
+  Files\dotnet\shared\Microsoft.WindowsDesktop.App\9.0.3\WindowsBase.dll'.  
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program               
+  Files\dotnet\shared\Microsoft.NETCore.App\9.0.3\System.Runtime.dll'.      
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program               
+  Files\dotnet\shared\Microsoft.WindowsDesktop.App\9.0.3\System.Xaml.dll'.  
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'c:\program               
+  files\microsoft visual studio\2022\enterprise\common7\ide\commonextension 
+  s\microsoft\hotreload\Microsoft.Extensions.DotNetDeltaApplier.dll'.       
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program               
+  Files\dotnet\shared\Microsoft.NETCore.App\9.0.3\System.IO.Pipes.dll'.     
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program               
+  Files\dotnet\shared\Microsoft.NETCore.App\9.0.3\System.Linq.dll'. Skipped 
+   loading symbols. Module is optimized and the debugger option 'Just My    
+  Code' is enabled.                                                         
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program               
+  Files\dotnet\shared\Microsoft.NETCore.App\9.0.3\System.Collections.dll'.  
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program               
+  Files\dotnet\shared\Microsoft.NETCore.App\9.0.3\System.Console.dll'.      
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program               
+  Files\dotnet\shared\Microsoft.NETCore.App\9.0.3\System.Threading.dll'.    
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Runtime.InteropServices.dll'.   
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Threading.Overlapped.dll'.      
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Security.AccessControl.dll'.    
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program               
+  Files\dotnet\shared\Microsoft.NETCore.App\9.0.3\System.Security.Principal 
+  .Windows.dll'. Skipped loading symbols. Module is optimized and the       
+  debugger option 'Just My Code' is enabled.                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Security.Claims.dll'. Skipped   
+  loading symbols. Module is optimized and the debugger option 'Just My     
+  Code' is enabled.                                                         
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Runtime.Loader.dll'. Skipped    
+  loading symbols. Module is optimized and the debugger option 'Just My     
+  Code' is enabled.                                                         
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program               
+  Files\Microsoft Visual Studio\2022\Enterprise\Common7\IDE\PrivateAssembli 
+  es\Runtime\Microsoft.VisualStudio.Debugger.Runtime.NetCoreApp.dll'.       
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program               
+  Files\dotnet\shared\Microsoft.NETCore.App\9.0.3\netstandard.dll'. Skipped 
+   loading symbols. Module is optimized and the debugger option 'Just My    
+  Code' is enabled.                                                         
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Threading.ThreadPool.dll'.      
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  Step into: Stepping over non-user code 'FaceRecApp.WPF.App..ctor'         
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Diagnostics.TraceSource.dll'.   
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Collections.Concurrent.dll'.    
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.WindowsDesktop.App\9.0.3\System.IO.Packaging.dll'.       
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Text.RegularExpressions.dll'.   
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program               
+  Files\dotnet\shared\Microsoft.NETCore.App\9.0.3\System.Private.Uri.dll'.  
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.WindowsDesktop.App\9.0.3\PresentationCore.dll'. Skipped  
+  loading symbols. Module is optimized and the debugger option 'Just My     
+  Code' is enabled.                                                         
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\Microsoft.Win32.Primitives.dll'.       
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program               
+  Files\dotnet\shared\Microsoft.NETCore.App\9.0.3\System.Memory.dll'.       
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.WindowsDesktop.App\9.0.3\DirectWriteForwarder.dll'.      
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Runtime.Extensions.dll'.        
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Diagnostics.Debug.dll'. Skipped 
+   loading symbols. Module is optimized and the debugger option 'Just My    
+  Code' is enabled.                                                         
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program               
+  Files\dotnet\shared\Microsoft.NETCore.App\9.0.3\System.Runtime.CompilerSe 
+  rvices.VisualC.dll'. Skipped loading symbols. Module is optimized and the 
+   debugger option 'Just My Code' is enabled.                               
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Collections.NonGeneric.dll'.    
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\Microsoft.Win32.Registry.dll'. Skipped 
+   loading symbols. Module is optimized and the debugger option 'Just My    
+  Code' is enabled.                                                         
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Collections.Specialized.dll'.   
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.ComponentModel.Primitives.dll'. 
+   Skipped loading symbols. Module is optimized and the debugger option     
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Threading.Thread.dll'. Skipped  
+  loading symbols. Module is optimized and the debugger option 'Just My     
+  Code' is enabled.                                                         
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program               
+  Files\dotnet\shared\Microsoft.WindowsDesktop.App\9.0.3\System.Configurati 
+  on.ConfigurationManager.dll'. Skipped loading symbols. Module is          
+  optimized and the debugger option 'Just My Code' is enabled.              
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Xml.ReaderWriter.dll'. Skipped  
+  loading symbols. Module is optimized and the debugger option 'Just My     
+  Code' is enabled.                                                         
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program               
+  Files\dotnet\shared\Microsoft.NETCore.App\9.0.3\System.Private.Xml.dll'.  
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Net.WebClient.dll'. Skipped     
+  loading symbols. Module is optimized and the debugger option 'Just My     
+  Code' is enabled.                                                         
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Text.Encoding.Extensions.dll'.  
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Numerics.Vectors.dll'. Skipped  
+  loading symbols. Module is optimized and the debugger option 'Just My     
+  Code' is enabled.                                                         
+  Step into: Stepping over non-user code                                    
+  'FaceRecApp.WPF.App.InitializeComponent'                                  
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program               
+  Files\dotnet\shared\Microsoft.NETCore.App\9.0.3\System.ComponentModel.Typ 
+  eConverter.dll'. Skipped loading symbols. Module is optimized and the     
+  debugger option 'Just My Code' is enabled.                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.WindowsDesktop.App\9.0.3\System.Windows.Extensions.dll'. 
+   Skipped loading symbols. Module is optimized and the debugger option     
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.ComponentModel.dll'. Skipped    
+  loading symbols. Module is optimized and the debugger option 'Just My     
+  Code' is enabled.                                                         
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program               
+  Files\dotnet\shared\Microsoft.NETCore.App\9.0.3\System.ObjectModel.dll'.  
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded                           
+  'C:\Users\Turtle\Documents\Biometrics\FaceRecognitionApp\FaceRecognitionA 
+  pp\src\FaceRecApp.WPF\bin\Debug\net9.0-windows\Microsoft.Extensions.Confi 
+  guration.Abstractions.dll'. Skipped loading symbols. Module is optimized  
+  and the debugger option 'Just My Code' is enabled.                        
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded                           
+  'C:\Users\Turtle\Documents\Biometrics\FaceRecognitionApp\FaceRecognitionA 
+  pp\src\FaceRecApp.WPF\bin\Debug\net9.0-windows\Microsoft.Extensions.Depen 
+  dencyInjection.Abstractions.dll'. Skipped loading symbols. Module is      
+  optimized and the debugger option 'Just My Code' is enabled.              
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Users\Turtle\Document 
+  s\Biometrics\FaceRecognitionApp\FaceRecognitionApp\src\FaceRecApp.WPF\bin 
+  \Debug\net9.0-windows\Microsoft.Extensions.Configuration.dll'. Skipped    
+  loading symbols. Module is optimized and the debugger option 'Just My     
+  Code' is enabled.                                                         
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded                           
+  'C:\Users\Turtle\Documents\Biometrics\FaceRecognitionApp\FaceRecognitionA 
+  pp\src\FaceRecApp.WPF\bin\Debug\net9.0-windows\Microsoft.Extensions.Confi 
+  guration.FileExtensions.dll'. Skipped loading symbols. Module is          
+  optimized and the debugger option 'Just My Code' is enabled.              
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Users\Turtle\Document 
+  s\Biometrics\FaceRecognitionApp\FaceRecognitionApp\src\FaceRecApp.WPF\bin 
+  \Debug\net9.0-windows\Microsoft.Extensions.Configuration.Json.dll'.       
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Users\Turtle\Document 
+  s\Biometrics\FaceRecognitionApp\FaceRecognitionApp\src\FaceRecApp.WPF\bin 
+  \Debug\net9.0-windows\Microsoft.EntityFrameworkCore.dll'. Skipped loading 
+   symbols. Module is optimized and the debugger option 'Just My Code' is   
+  enabled.                                                                  
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Users\Turtle\Document 
+  s\Biometrics\FaceRecognitionApp\FaceRecognitionApp\src\FaceRecApp.WPF\bin 
+  \Debug\net9.0-windows\Microsoft.Extensions.Logging.Abstractions.dll'.     
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded                           
+  'C:\Users\Turtle\Documents\Biometrics\FaceRecognitionApp\FaceRecognitionA 
+  pp\src\FaceRecApp.WPF\bin\Debug\net9.0-windows\FaceRecApp.Core.dll'.      
+  Symbols loaded.                                                           
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Users\Turtle\Document 
+  s\Biometrics\FaceRecognitionApp\FaceRecognitionApp\src\FaceRecApp.WPF\bin 
+  \Debug\net9.0-windows\Microsoft.Extensions.DependencyInjection.dll'.      
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  Step into: Stepping over non-user code                                    
+  'FaceRecApp.WPF.App.<>c__DisplayClass4_0..ctor'                           
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Users\Turtle\Document 
+  s\Biometrics\FaceRecognitionApp\FaceRecognitionApp\src\FaceRecApp.WPF\bin 
+  \Debug\net9.0-windows\Microsoft.Extensions.FileProviders.Physical.dll'.   
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded                           
+  'C:\Users\Turtle\Documents\Biometrics\FaceRecognitionApp\FaceRecognitionA 
+  pp\src\FaceRecApp.WPF\bin\Debug\net9.0-windows\Microsoft.Extensions.FileP 
+  roviders.Abstractions.dll'. Skipped loading symbols. Module is optimized  
+  and the debugger option 'Just My Code' is enabled.                        
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Users\Turtle\Document 
+  s\Biometrics\FaceRecognitionApp\FaceRecognitionApp\src\FaceRecApp.WPF\bin 
+  \Debug\net9.0-windows\Microsoft.Extensions.Primitives.dll'. Skipped       
+  loading symbols. Module is optimized and the debugger option 'Just My     
+  Code' is enabled.                                                         
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.IO.FileSystem.Watcher.dll'.     
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Users\Turtle\Document 
+  s\Biometrics\FaceRecognitionApp\FaceRecognitionApp\src\FaceRecApp.WPF\bin 
+  \Debug\net9.0-windows\Microsoft.Extensions.FileSystemGlobbing.dll'.       
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded                           
+  'C:\Users\Turtle\Documents\Biometrics\FaceRecognitionApp\FaceRecognitionA 
+  pp\src\FaceRecApp.WPF\bin\Debug\net9.0-windows\System.Text.Json.dll'.     
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program               
+  Files\dotnet\shared\Microsoft.NETCore.App\9.0.3\System.IO.Pipelines.dll'. 
+   Skipped loading symbols. Module is optimized and the debugger option     
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Diagnostics.Tracing.dll'.       
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Users\Turtle\Document 
+  s\Biometrics\FaceRecognitionApp\FaceRecognitionApp\src\FaceRecApp.WPF\bin 
+  \Debug\net9.0-windows\Microsoft.EntityFrameworkCore.Relational.dll'.      
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Collections.Immutable.dll'.     
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Users\Turtle\Document 
+  s\Biometrics\FaceRecognitionApp\FaceRecognitionApp\src\FaceRecApp.WPF\bin 
+  \Debug\net9.0-windows\Microsoft.Extensions.Caching.Abstractions.dll'.     
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Users\Turtle\Document 
+  s\Biometrics\FaceRecognitionApp\FaceRecognitionApp\src\FaceRecApp.WPF\bin 
+  \Debug\net9.0-windows\Microsoft.EntityFrameworkCore.SqlServer.dll'.       
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program               
+  Files\dotnet\shared\Microsoft.NETCore.App\9.0.3\System.Data.Common.dll'.  
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Users\Turtle\Document 
+  s\Biometrics\FaceRecognitionApp\FaceRecognitionApp\src\FaceRecApp.WPF\bin 
+  \Debug\net9.0-windows\EFCore.SqlServer.VectorSearch.dll'. Skipped loading 
+   symbols. Module is optimized and the debugger option 'Just My Code' is   
+  enabled.                                                                  
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Linq.Expressions.dll'. Skipped  
+  loading symbols. Module is optimized and the debugger option 'Just My     
+  Code' is enabled.                                                         
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program               
+  Files\dotnet\shared\Microsoft.NETCore.App\9.0.3\System.Reflection.Emit.IL 
+  Generation.dll'. Skipped loading symbols. Module is optimized and the     
+  debugger option 'Just My Code' is enabled.                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program               
+  Files\dotnet\shared\Microsoft.NETCore.App\9.0.3\System.Reflection.Emit.Li 
+  ghtweight.dll'. Skipped loading symbols. Module is optimized and the      
+  debugger option 'Just My Code' is enabled.                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Reflection.Primitives.dll'.     
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'Anonymously Hosted       
+  DynamicMethods Assembly'.                                                 
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program               
+  Files\dotnet\shared\Microsoft.NETCore.App\9.0.3\System.Diagnostics.Diagno 
+  sticSource.dll'. Skipped loading symbols. Module is optimized and the     
+  debugger option 'Just My Code' is enabled.                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Users\Turtle\Document 
+  s\Biometrics\FaceRecognitionApp\FaceRecognitionApp\src\FaceRecApp.WPF\bin 
+  \Debug\net9.0-windows\Microsoft.EntityFrameworkCore.Abstractions.dll'.    
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Transactions.Local.dll'.        
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Users\Turtle\Document 
+  s\Biometrics\FaceRecognitionApp\FaceRecognitionApp\src\FaceRecApp.WPF\bin 
+  \Debug\net9.0-windows\Microsoft.Extensions.Logging.dll'. Skipped loading  
+  symbols. Module is optimized and the debugger option 'Just My Code' is    
+  enabled.                                                                  
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Users\Turtle\Document 
+  s\Biometrics\FaceRecognitionApp\FaceRecognitionApp\src\FaceRecApp.WPF\bin 
+  \Debug\net9.0-windows\Microsoft.Extensions.Options.dll'. Skipped loading  
+  symbols. Module is optimized and the debugger option 'Just My Code' is    
+  enabled.                                                                  
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Users\Turtle\Document 
+  s\Biometrics\FaceRecognitionApp\FaceRecognitionApp\src\FaceRecApp.WPF\bin 
+  \Debug\net9.0-windows\Microsoft.Extensions.Caching.Memory.dll'. Skipped   
+  loading symbols. Module is optimized and the debugger option 'Just My     
+  Code' is enabled.                                                         
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program               
+  Files\dotnet\shared\Microsoft.NETCore.App\9.0.3\System.ComponentModel.Ann 
+  otations.dll'. Skipped loading symbols. Module is optimized and the       
+  debugger option 'Just My Code' is enabled.                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Net.Primitives.dll'. Skipped    
+  loading symbols. Module is optimized and the debugger option 'Just My     
+  Code' is enabled.                                                         
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Net.NetworkInformation.dll'.    
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Runtime.Intrinsics.dll'.        
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded                           
+  'C:\Users\Turtle\Documents\Biometrics\FaceRecognitionApp\FaceRecognitionA 
+  pp\src\FaceRecApp.WPF\bin\Debug\net9.0-windows\SixLabors.ImageSharp.dll'. 
+   Skipped loading symbols. Module is optimized and the debugger option     
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded                           
+  'C:\Users\Turtle\Documents\Biometrics\FaceRecognitionApp\FaceRecognitionA 
+  pp\src\FaceRecApp.WPF\bin\Debug\net9.0-windows\OpenCvSharp.dll'. Skipped  
+  loading symbols. Module is optimized and the debugger option 'Just My     
+  Code' is enabled.                                                         
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded                           
+  'C:\Users\Turtle\Documents\Biometrics\FaceRecognitionApp\FaceRecognitionA 
+  pp\src\FaceRecApp.WPF\bin\Debug\net9.0-windows\FaceAiSharp.dll'. Skipped  
+  loading symbols. Module is optimized and the debugger option 'Just My     
+  Code' is enabled.                                                         
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded                           
+  'C:\Users\Turtle\Documents\Biometrics\FaceRecognitionApp\FaceRecognitionA 
+  pp\src\FaceRecApp.WPF\bin\Debug\net9.0-windows\runtimes\win\lib\net6.0\Mi 
+  crosoft.Data.SqlClient.dll'. Skipped loading symbols. Module is optimized 
+   and the debugger option 'Just My Code' is enabled.                       
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Diagnostics.StackTrace.dll'.    
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Security.Cryptography.dll'.     
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Users\Turtle\Document 
+  s\Biometrics\FaceRecognitionApp\FaceRecognitionApp\src\FaceRecApp.WPF\bin 
+  \Debug\net9.0-windows\Microsoft.Identity.Client.dll'. Skipped loading     
+  symbols. Module is optimized and the debugger option 'Just My Code' is    
+  enabled.                                                                  
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Text.Encoding.CodePages.dll'.   
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program Files\dotnet\ 
+  shared\Microsoft.NETCore.App\9.0.3\System.Diagnostics.Process.dll'.       
+  Skipped loading symbols. Module is optimized and the debugger option      
+  'Just My Code' is enabled.                                                
+  'FaceRecApp.WPF.exe' (CoreCLR: clrhost): Loaded 'C:\Program               
+  Files\dotnet\shared\Microsoft.NETCore.App\9.0.3\System.Runtime.InteropSer 
+  vices.RuntimeInformation.dll'. S what is the error now?                   
+
+● The debug output you pasted shows only the normal DLL loading sequence —
+  there's no error visible in it. The output cuts off at
+  System.Runtime.InteropServices.RuntimeInformation.dll which is still early in
+  the startup process (DI and database initialization haven't completed yet).
+
+  Could you share the actual error? It might be:
+  1. Further down in the Output window (scroll down past the DLL loading)
+  2. An exception dialog that popped up
+  3. The app freezing/hanging during startup
+
+  If the app is hanging, it may be stuck on DetectVectorIndexAsync() during the 
+  database initialization. Let me know what you see and I'll fix it.
+
+❯ the windows doesn't load up  
+
+● The app is deadlocking on startup. The
+  DetectVectorIndexAsync().GetAwaiter().GetResult() call blocks the UI thread,
+  which causes a deadlock when the async method tries to resume on the same
+  thread.
+
+● Update(src\FaceRecApp.WPF\App.xaml.cs)
+  ⎿  Added 2 lines, removed 1 line
+      87              db.Database.Migrate();                             
+      88                                                                 
+      89              // Detect DiskANN vector index for faster          
+          VECTOR_SEARCH                                                  
+      90 +            // Use Task.Run to avoid deadlocking the UI thread 
+      91              var repo =                                         
+          Services.GetRequiredService<FaceRepository>();                 
+      92 -            repo.DetectVectorIndexAsync()                      
+         -.GetAwaiter().GetResult();                                     
+      92 +            Task.Run(() => repo.DetectVectorIndexAsync())      
+         +.GetAwaiter().GetResult();                                     
+      93          }                                                      
+      94          catch (Exception ex)                                   
+      95          {                                                      
+
+● Bash(cd "C:\Users\Turtle\Documents\Biometrics\FaceRecognitionApp\FaceRecogniti
+      onApp" && dotnet build --no-restore 2>&1 | tail -5)
+  ⎿  Build succeeded.
+         0 Warning(s)
+         0 Error(s)
+     … +2 lines (ctrl+o to expand)
+  ⎿  (timeout 1m)
+
+● Fixed. The issue was a classic WPF deadlock — calling
+  .GetAwaiter().GetResult() on the UI thread blocks it, but the await inside
+  DetectVectorIndexAsync needs the UI thread to resume. Wrapping in Task.Run()
+  moves the async work to a thread pool thread, avoiding the deadlock. Try
+  running it again.
+
+❯ deep dive and create an architecture documentation, tech stack including  
+  onnx, and etc. And how the core and client, core and wpf works. What      
+  model did we used?                                                        
+
+● Explore(Explore full project structure)
+  ⎿  Done (35 tool uses · 110.0k tokens · 1m 47s)
+  (ctrl+o to expand)
+
+● Now I have a complete picture. Let me create the architecture documentation.
+
+● Write(docs\ARCHITECTURE.md)
+  ⎿  Wrote 1 lines to docs\ARCHITECTURE.md
+     # Face Recognition System -- Architecture Documentation
+
+     ## 1. System Overview
+
+     An offline desktop face recognition system built with C# (.NET 9) that
+     performs real-time detection, identification, and liveness verification
+      using commodity hardware (webcam + CPU). No cloud services, no GPU
+     required.
+
+     ```
+     +-------------------+     +-------------------+
+     +-------------------+
+     |  FaceRecApp.WPF   |     |  FaceRecApp.Core  |     |  SQL Server 2025
+      |
+     |  (Desktop UI)     |---->|  (Business Logic) |---->|  Express Edition
+      |
+
+
+
+
+● Created the architecture documentation at docs/ARCHITECTURE.md. Here's what it
+   covers:
+
+  11 sections:
+
+  1. System Overview -- High-level architecture diagram (WPF -> Core -> SQL
+  Server 2025)
+  2. Tech Stack -- Every NuGet package with version and role (ONNX Runtime,
+  FaceAiSharp, EF Core, ImageSharp, OpenCvSharp, CommunityToolkit.Mvvm)
+  3. Project Structure -- Full file tree with purpose annotations
+  4. ONNX Models Deep Dive -- All 4 models:
+    - SCRFD -- face detection (boxes + 5 landmarks)
+    - ArcFace -- 512-dim face embedding
+    - Eye State Detector -- blink detection
+    - MiniFASNetV2 -- anti-spoofing (real vs phone/printout/video)
+    - Input/output specs, preprocessing, speed benchmarks
+  5. Processing Pipeline -- Full frame flow diagram with timing budget
+  6. Database Architecture -- Schema, VECTOR(512), DiskANN vs brute-force SQL,
+  performance at scale (5ms vs 75ms at 100K)
+  7. Liveness & Anti-Spoofing -- 5 defense layers, state machine diagram, attack
+   coverage matrix
+  8. Core-WPF Boundary -- Dependency direction, image type bridge, DI container
+  layout, event flow
+  9. Data Flow Diagrams -- Recognition flow and registration flow
+  10. Configuration Reference -- All settings with values and purpose
+  11. Build & Run -- Commands and prerequisites
+
+✻ Churned for 4m 27s

@@ -74,7 +74,7 @@ public partial class RegisterWindow : System.Windows.Window
         {
             StatusLabel.Text = "Please enter a name.";
             StatusLabel.Foreground = new System.Windows.Media.SolidColorBrush(
-                System.Windows.Media.Color.FromRgb(0xF3, 0x87, 0x87));
+                System.Windows.Media.Color.FromRgb(0xB8, 0x5C, 0x56));
             NameInput.Focus();
             return;
         }
@@ -83,7 +83,7 @@ public partial class RegisterWindow : System.Windows.Window
         {
             StatusLabel.Text = "Camera is not running. Start it from the main window.";
             StatusLabel.Foreground = new System.Windows.Media.SolidColorBrush(
-                System.Windows.Media.Color.FromRgb(0xF3, 0x87, 0x87));
+                System.Windows.Media.Color.FromRgb(0xB8, 0x5C, 0x56));
             return;
         }
 
@@ -91,7 +91,7 @@ public partial class RegisterWindow : System.Windows.Window
         CaptureButton.IsEnabled = false;
         StatusLabel.Text = "Capturing face... Please hold still.";
         StatusLabel.Foreground = new System.Windows.Media.SolidColorBrush(
-            System.Windows.Media.Color.FromRgb(0x89, 0xB4, 0xFA));
+            System.Windows.Media.Color.FromRgb(0x78, 0x71, 0x6C));
 
         try
         {
@@ -112,7 +112,7 @@ public partial class RegisterWindow : System.Windows.Window
             {
                 StatusLabel.Text = $"Successfully registered '{result.Person!.Name}'!";
                 StatusLabel.Foreground = new System.Windows.Media.SolidColorBrush(
-                    System.Windows.Media.Color.FromRgb(0xA6, 0xE3, 0xA1));
+                    System.Windows.Media.Color.FromRgb(0x5B, 0x7F, 0x62));
 
                 // Auto-close after brief delay
                 await Task.Delay(1500);
@@ -123,14 +123,14 @@ public partial class RegisterWindow : System.Windows.Window
             {
                 StatusLabel.Text = result.Error ?? "Registration failed.";
                 StatusLabel.Foreground = new System.Windows.Media.SolidColorBrush(
-                    System.Windows.Media.Color.FromRgb(0xF3, 0x87, 0x87));
+                    System.Windows.Media.Color.FromRgb(0xB8, 0x5C, 0x56));
             }
         }
         catch (Exception ex)
         {
             StatusLabel.Text = $"Error: {ex.Message}";
             StatusLabel.Foreground = new System.Windows.Media.SolidColorBrush(
-                System.Windows.Media.Color.FromRgb(0xF3, 0x87, 0x87));
+                System.Windows.Media.Color.FromRgb(0xB8, 0x5C, 0x56));
         }
         finally
         {

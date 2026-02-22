@@ -53,6 +53,7 @@ public partial class App : Application
         services.AddSingleton<FaceDetectionService>();
         services.AddSingleton<FaceRecognitionService>();
         services.AddSingleton<LivenessService>();
+        services.AddSingleton<AntiSpoofService>();
         services.AddSingleton<CameraService>();
 
         // Transient: FaceRepository creates short-lived DbContext per operation
@@ -67,7 +68,8 @@ public partial class App : Application
                 sp.GetRequiredService<FaceDetectionService>(),
                 sp.GetRequiredService<FaceRecognitionService>(),
                 sp.GetRequiredService<LivenessService>(),
-                sp.GetRequiredService<FaceRepository>()));
+                sp.GetRequiredService<FaceRepository>(),
+                sp.GetRequiredService<AntiSpoofService>()));
 
         Services = services.BuildServiceProvider();
 
@@ -83,6 +85,11 @@ public partial class App : Application
             var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<FaceDbContext>>();
             using var db = dbFactory.CreateDbContext();
             db.Database.Migrate();
+
+            // Detect DiskANN vector index for faster VECTOR_SEARCH
+            // Use Task.Run to avoid deadlocking the UI thread
+            var repo = Services.GetRequiredService<FaceRepository>();
+            Task.Run(() => repo.DetectVectorIndexAsync()).GetAwaiter().GetResult();
         }
         catch (Exception ex)
         {

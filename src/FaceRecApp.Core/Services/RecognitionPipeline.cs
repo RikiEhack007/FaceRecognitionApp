@@ -40,6 +40,7 @@ public class RecognitionPipeline : IDisposable
     private readonly FaceRecognitionService _recognizer;
     private readonly LivenessService _liveness;
     private readonly FaceRepository _repository;
+    private readonly AntiSpoofService _antiSpoof;
     private bool _disposed;
 
     // ─── Last processed results (displayed on all frames) ───
@@ -73,10 +74,15 @@ public class RecognitionPipeline : IDisposable
     public event EventHandler<string>? ProcessingError;
 
     /// <summary>
-    /// Is the pipeline currently processing a frame?
-    /// Used to prevent overlapping processing.
+    /// Atomic flag to prevent overlapping processing.
+    /// 0 = idle, 1 = processing. Uses Interlocked for thread safety.
     /// </summary>
-    public bool IsProcessing { get; private set; }
+    private int _isProcessing;
+
+    /// <summary>
+    /// Is the pipeline currently processing a frame?
+    /// </summary>
+    public bool IsProcessing => _isProcessing != 0;
 
     // ─── Performance tracking ───
     public TimeSpan LastDetectionTime { get; private set; }
@@ -88,12 +94,14 @@ public class RecognitionPipeline : IDisposable
         FaceDetectionService detector,
         FaceRecognitionService recognizer,
         LivenessService liveness,
-        FaceRepository repository)
+        FaceRepository repository,
+        AntiSpoofService antiSpoof)
     {
         _detector = detector;
         _recognizer = recognizer;
         _liveness = liveness;
         _repository = repository;
+        _antiSpoof = antiSpoof;
     }
 
     // ══════════════════════════════════════════════
@@ -110,8 +118,14 @@ public class RecognitionPipeline : IDisposable
     /// <returns>List of recognition results (one per detected face)</returns>
     public async Task<IReadOnlyList<RecognitionResult>> ProcessFrameAsync(Mat frame)
     {
-        if (IsProcessing) return LastResults; // Skip if still processing previous frame
-        IsProcessing = true;
+        // Atomic check-and-set: only one thread can enter at a time.
+        // CompareExchange returns the OLD value; if it was 0, we set it to 1 and proceed.
+        // If it was already 1, another thread is processing — skip this frame.
+        if (Interlocked.CompareExchange(ref _isProcessing, 1, 0) != 0)
+        {
+            Console.WriteLine($"[Pipeline] SKIPPED — already processing");
+            return LastResults;
+        }
 
         var totalSw = Stopwatch.StartNew();
         var results = new List<RecognitionResult>();
@@ -120,20 +134,30 @@ public class RecognitionPipeline : IDisposable
         {
             // Skip poor quality frames
             if (!ImageConverter.IsFrameUsable(frame))
+            {
+                Console.WriteLine($"[Pipeline] Frame skipped — not usable");
                 return results;
+            }
 
             // Step 1: Convert to ImageSharp (needed by FaceAiSharp)
+            var convertSw = Stopwatch.StartNew();
             using var image = ImageConverter.MatToImageSharp(frame);
+            convertSw.Stop();
+            Console.WriteLine($"[Pipeline] Convert: {convertSw.ElapsedMilliseconds}ms");
 
             // Step 2: Detect faces
             var detectionSw = Stopwatch.StartNew();
             var faces = _detector.DetectFaces(image);
             detectionSw.Stop();
             LastDetectionTime = detectionSw.Elapsed;
+            Console.WriteLine($"[Pipeline] Detect: {detectionSw.ElapsedMilliseconds}ms, found {faces.Count} face(s)");
 
             if (faces.Count == 0)
             {
-                // No faces — clear previous results
+                // No faces — notify liveness service for auto-reset
+                _liveness.OnNoFaceDetected();
+
+                // Clear previous results
                 lock (_resultsLock)
                     _lastResults = results;
 
@@ -141,9 +165,31 @@ public class RecognitionPipeline : IDisposable
                 return results;
             }
 
-            // Step 3 & 4: For each detected face → generate embedding → search database
-            foreach (var face in faces)
+            // Find the largest face (by bounding box area) — this is the primary face
+            // for liveness tracking. Only the primary face gets full liveness processing
+            // (blink tracking, micro-movement, identity tracking). All other faces are
+            // treated as secondary — they get per-face spoof detection but no liveness state.
+            // This prevents phone photo faces from corrupting the real person's liveness data.
+            int primaryFaceIndex = 0;
+            float maxArea = 0;
+            for (int i = 0; i < faces.Count; i++)
             {
+                float area = faces[i].Box.Width * faces[i].Box.Height;
+                if (area > maxArea)
+                {
+                    maxArea = area;
+                    primaryFaceIndex = i;
+                }
+            }
+
+            Console.WriteLine($"[Pipeline] Primary face: index={primaryFaceIndex} (area={maxArea:F0})");
+
+            // Step 3 & 4: For each detected face → generate embedding → search database
+            for (int i = 0; i < faces.Count; i++)
+            {
+                var face = faces[i];
+                bool isPrimary = i == primaryFaceIndex;
+
                 var result = new RecognitionResult
                 {
                     FaceBox = face.Box,
@@ -158,6 +204,7 @@ public class RecognitionPipeline : IDisposable
                     embedSw.Stop();
                     result.EmbeddingTime = embedSw.Elapsed;
                     result.Embedding = embedding;
+                    Console.WriteLine($"[Pipeline]   Face[{i}] Embed: {embedSw.ElapsedMilliseconds}ms {(isPrimary ? "(primary)" : "(secondary)")}");
 
                     // Search database
                     var searchSw = Stopwatch.StartNew();
@@ -165,6 +212,7 @@ public class RecognitionPipeline : IDisposable
                     searchSw.Stop();
                     result.SearchTime = searchSw.Elapsed;
                     LastSearchTime = searchSw.Elapsed;
+                    Console.WriteLine($"[Pipeline]   Face[{i}] Search: {searchSw.ElapsedMilliseconds}ms");
 
                     if (match != null)
                     {
@@ -173,8 +221,35 @@ public class RecognitionPipeline : IDisposable
                         result.Person = match.IsMatch ? match.Person : null;
                     }
 
-                    // Liveness check
-                    result.IsLive = _liveness.ProcessFrame(image, face);
+                    // Per-face ML anti-spoofing (replaces hand-crafted texture checks)
+                    var spoofSw = Stopwatch.StartNew();
+                    var spoofResult = _antiSpoof.Predict(frame, face.Box);
+                    result.IsSpoofDetected = !spoofResult.IsReal;
+                    spoofSw.Stop();
+                    Console.WriteLine($"[Pipeline]   Face[{i}] Spoof: {spoofSw.ElapsedMilliseconds}ms → {(spoofResult.IsReal ? "REAL" : "SPOOF")} (conf={spoofResult.Confidence:F3})");
+
+                    // Liveness check — only run on the primary (largest) face.
+                    // Secondary faces never get liveness confirmation to prevent
+                    // phone photos from interfering with real-person blink tracking.
+                    if (isPrimary && !result.IsSpoofDetected)
+                    {
+                        var livenessSw = Stopwatch.StartNew();
+                        result.IsLive = _liveness.ProcessFrame(image, face, embedding, frame);
+                        livenessSw.Stop();
+                        Console.WriteLine($"[Pipeline]   Face[{i}] Liveness: {livenessSw.ElapsedMilliseconds}ms → {(result.IsLive ? "LIVE" : "PENDING")}");
+                    }
+                    else if (result.IsSpoofDetected)
+                    {
+                        // Spoof-detected faces are never live
+                        result.IsLive = false;
+                        Console.WriteLine($"[Pipeline]   Face[{i}] Liveness: SKIPPED (spoof detected)");
+                    }
+                    else
+                    {
+                        // Secondary (non-primary) faces: not tracked for liveness
+                        result.IsLive = false;
+                        Console.WriteLine($"[Pipeline]   Face[{i}] Liveness: SKIPPED (secondary face)");
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -197,7 +272,10 @@ public class RecognitionPipeline : IDisposable
                             result.IsRecognized,
                             result.IsLive);
                     }
-                    catch { /* Logging failure shouldn't crash the app */ }
+                    catch (Exception logEx)
+                    {
+                        Console.WriteLine($"[Pipeline] LogRecognition error: {logEx.GetBaseException().Message}");
+                    }
                 }
             });
         }
@@ -211,12 +289,16 @@ public class RecognitionPipeline : IDisposable
             LastTotalTime = totalSw.Elapsed;
             LastEmbeddingTime = results.FirstOrDefault()?.EmbeddingTime ?? TimeSpan.Zero;
 
+            Console.WriteLine($"[Pipeline] TOTAL: {totalSw.ElapsedMilliseconds}ms, {results.Count} result(s)");
+
             // Update shared results
             lock (_resultsLock)
                 _lastResults = results;
 
             ResultsUpdated?.Invoke(this, results);
-            IsProcessing = false;
+
+            // Release the processing lock (atomic)
+            Interlocked.Exchange(ref _isProcessing, 0);
         }
 
         return results;
@@ -344,7 +426,8 @@ public class RecognitionPipeline : IDisposable
                 result.DisplayLabel,
                 result.IsRecognized,
                 result.IsHighConfidence,
-                result.IsLive);
+                result.IsLive,
+                result.IsSpoofDetected);
         }
 
         // Draw FPS and timing info
@@ -377,7 +460,7 @@ public class RecognitionPipeline : IDisposable
     /// <summary>
     /// Has a blink been detected?
     /// </summary>
-    public bool IsLivenessConfirmed => _liveness.BlinkDetected;
+    public bool IsLivenessConfirmed => _liveness.IsLive;
 
     // ══════════════════════════════════════════════
     //  CLEANUP

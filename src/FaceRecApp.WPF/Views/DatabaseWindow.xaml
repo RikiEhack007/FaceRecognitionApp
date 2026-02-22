@@ -1,83 +1,64 @@
 <Window x:Class="FaceRecApp.WPF.Views.DatabaseWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Database Management"
-        Height="550" Width="750"
+        Title="Database"
+        Height="560" Width="780"
         WindowStartupLocation="CenterOwner"
-        Background="#1E1E2E">
+        Background="{StaticResource BgPrimary}">
 
     <Window.Resources>
         <Style x:Key="DgColumnHeader" TargetType="DataGridColumnHeader">
-            <Setter Property="Background" Value="#313244"/>
-            <Setter Property="Foreground" Value="#CDD6F4"/>
-            <Setter Property="Padding" Value="10,6"/>
-            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Background" Value="{StaticResource BgSurfaceDim}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="FontSize" Value="11"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="BorderBrush" Value="#45475A"/>
-            <Setter Property="BorderThickness" Value="0,0,1,1"/>
-        </Style>
-        <Style x:Key="ActionBtn" TargetType="Button">
-            <Setter Property="Background" Value="#45475A"/>
-            <Setter Property="Foreground" Value="#CDD6F4"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                CornerRadius="4" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#585B70"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderLight}"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
         </Style>
     </Window.Resources>
 
-    <Grid Margin="16">
+    <Grid Margin="24">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>    <!-- Title + Stats -->
-            <RowDefinition Height="*"/>       <!-- DataGrid -->
-            <RowDefinition Height="Auto"/>    <!-- Buttons -->
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="16"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="16"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="16"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Title + Stats -->
-        <StackPanel Grid.Row="0" Margin="0,0,0,12">
-            <TextBlock Text="Registered Persons"
-                       Foreground="#CDD6F4"
-                       FontSize="20" FontWeight="Bold"
-                       Margin="0,0,0,8"/>
+        <!-- Title -->
+        <TextBlock Grid.Row="0" Text="Registered Persons"
+                   Style="{StaticResource PageTitle}"/>
 
-            <Border Background="#181825" CornerRadius="6" Padding="12,8">
-                <WrapPanel>
-                    <TextBlock x:Name="StatPersons" Foreground="#89B4FA" FontSize="12" Margin="0,0,20,0"/>
-                    <TextBlock x:Name="StatSamples" Foreground="#A6E3A1" FontSize="12" Margin="0,0,20,0"/>
-                    <TextBlock x:Name="StatRecognitions" Foreground="#F9E2AF" FontSize="12" Margin="0,0,20,0"/>
-                    <TextBlock x:Name="StatRate" Foreground="#CBA6F7" FontSize="12"/>
-                </WrapPanel>
-            </Border>
-        </StackPanel>
+        <!-- Stats -->
+        <Border Grid.Row="2" Style="{StaticResource Card}" Padding="14,10">
+            <WrapPanel>
+                <TextBlock x:Name="StatPersons" Style="{StaticResource CaptionText}"
+                           Margin="0,0,24,0"/>
+                <TextBlock x:Name="StatSamples" Style="{StaticResource CaptionText}"
+                           Margin="0,0,24,0"/>
+                <TextBlock x:Name="StatRecognitions" Style="{StaticResource CaptionText}"
+                           Margin="0,0,24,0"/>
+                <TextBlock x:Name="StatRate" Style="{StaticResource CaptionText}"/>
+            </WrapPanel>
+        </Border>
 
         <!-- DataGrid -->
-        <DataGrid x:Name="PersonsGrid" Grid.Row="1"
+        <DataGrid x:Name="PersonsGrid" Grid.Row="4"
                   AutoGenerateColumns="False"
                   IsReadOnly="True"
                   SelectionMode="Single"
-                  Background="#181825"
-                  Foreground="#CDD6F4"
-                  BorderBrush="#313244"
+                  Background="{StaticResource BgSurface}"
+                  Foreground="{StaticResource TextPrimary}"
+                  BorderBrush="{StaticResource BorderDefault}"
                   BorderThickness="1"
-                  RowBackground="#1E1E2E"
-                  AlternatingRowBackground="#181825"
+                  RowBackground="{StaticResource BgSurface}"
+                  AlternatingRowBackground="{StaticResource BgSurfaceDim}"
                   GridLinesVisibility="Horizontal"
-                  HorizontalGridLinesBrush="#313244"
+                  HorizontalGridLinesBrush="{StaticResource BorderLight}"
                   HeadersVisibility="Column"
                   ColumnHeaderStyle="{StaticResource DgColumnHeader}"
                   FontSize="12"
@@ -93,22 +74,22 @@
             </DataGrid.Columns>
             <DataGrid.CellStyle>
                 <Style TargetType="DataGridCell">
-                    <Setter Property="Foreground" Value="#CDD6F4"/>
+                    <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
                     <Setter Property="BorderThickness" Value="0"/>
                     <Setter Property="Padding" Value="6,4"/>
                     <Style.Triggers>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter Property="Background" Value="#45475A"/>
+                            <Setter Property="Background" Value="{StaticResource BgSurfaceDim}"/>
                         </Trigger>
                     </Style.Triggers>
                 </Style>
             </DataGrid.CellStyle>
             <DataGrid.RowStyle>
                 <Style TargetType="DataGridRow">
-                    <Setter Property="Height" Value="32"/>
+                    <Setter Property="Height" Value="34"/>
                     <Style.Triggers>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter Property="Background" Value="#45475A"/>
+                            <Setter Property="Background" Value="{StaticResource BgSurfaceDim}"/>
                         </Trigger>
                     </Style.Triggers>
                 </Style>
@@ -116,21 +97,18 @@
         </DataGrid>
 
         <!-- Buttons -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal"
-                    HorizontalAlignment="Right" Margin="0,12,0,0">
+        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="Refresh"
                     Click="OnRefreshClick"
-                    Style="{StaticResource ActionBtn}"
-                    Background="#89B4FA" Foreground="#1E1E2E" FontWeight="SemiBold"
+                    Style="{StaticResource BtnPrimary}"
                     Margin="0,0,8,0"/>
             <Button Content="Delete Selected"
                     Click="OnDeleteClick"
-                    Style="{StaticResource ActionBtn}"
-                    Background="#F38BA8" Foreground="#1E1E2E"
+                    Style="{StaticResource BtnDanger}"
                     Margin="0,0,8,0"/>
             <Button Content="Close"
                     Click="OnCloseClick"
-                    Style="{StaticResource ActionBtn}"/>
+                    Style="{StaticResource BtnBase}"/>
         </StackPanel>
     </Grid>
 </Window>
