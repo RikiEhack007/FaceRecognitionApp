@@ -52,6 +52,10 @@
     <!-- WPF-specific extensions (BitmapSource) remain in the WPF project. -->
     <PackageReference Include="OpenCvSharp4" Version="4.10.0.20241108" />
     <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.10.0.20241108" />
+
+    <!-- ==================== WMI (Camera Device Enumeration) ==================== -->
+    <!-- Used by CameraService to enumerate camera devices with friendly names -->
+    <PackageReference Include="System.Management" Version="9.0.0" />
   </ItemGroup>
 
 </Project>

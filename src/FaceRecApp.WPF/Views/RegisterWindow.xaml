@@ -11,7 +11,9 @@
     <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="20"/>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="16"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="20"/>
             <RowDefinition Height="Auto"/>
@@ -21,8 +23,23 @@
         <TextBlock Grid.Row="0" Text="Register New Person"
                    Style="{StaticResource PageTitle}"/>
 
+        <!-- Camera Selector -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal">
+            <TextBlock Text="Camera:" Foreground="{StaticResource TextSecondary}"
+                       FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <ComboBox x:Name="CameraSelector"
+                      Width="200" Margin="0,0,4,0"
+                      Style="{StaticResource DarkComboBox}"/>
+            <Button x:Name="RefreshCamerasButton"
+                    Content="&#x21BB;"
+                    Click="OnRefreshCamerasClick"
+                    Style="{StaticResource BtnBase}"
+                    FontSize="14" Width="32"
+                    ToolTip="Refresh camera list"/>
+        </StackPanel>
+
         <!-- Content -->
-        <Grid Grid.Row="2">
+        <Grid Grid.Row="4">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="16"/>
@@ -78,7 +95,7 @@
         </Grid>
 
         <!-- Buttons -->
-        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button x:Name="CaptureButton"
                     Content="Capture &amp; Register"
                     Click="OnCaptureClick"

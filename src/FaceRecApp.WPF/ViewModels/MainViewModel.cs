@@ -97,6 +97,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private ObservableCollection<string> _activityLog = new();
 
+    /// <summary>
+    /// Available camera devices (populated by RefreshCameraDevices).
+    /// </summary>
+    [ObservableProperty]
+    private ObservableCollection<CameraDeviceInfo> _cameraDevices = new();
+
+    /// <summary>
+    /// Currently selected camera device.
+    /// Changing this while the camera is running triggers a hot-switch.
+    /// </summary>
+    [ObservableProperty]
+    private CameraDeviceInfo? _selectedCamera;
+
     // ──────────────────────────────────────────────
     // Constructor
     // ──────────────────────────────────────────────
@@ -122,6 +135,36 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         // Initial database stats
         _ = RefreshDatabaseStatsAsync();
+
+        // Initial camera device scan
+        RefreshCameraDevices();
+    }
+
+    /// <summary>
+    /// Hot-switch: when the user picks a different camera while running,
+    /// stop the current camera and start the newly selected one.
+    /// </summary>
+    partial void OnSelectedCameraChanged(CameraDeviceInfo? value)
+    {
+        if (!IsCameraRunning || value == null)
+            return;
+
+        _camera.Stop();
+        bool success = _camera.Start(value);
+        if (success)
+        {
+            _pipeline.SkipAntiSpoof = value.IsPhoneCamera;
+            StatusText = $"Switched to {value.Name}";
+            AddLog($"Switched to camera: {value.Name}");
+            if (value.IsPhoneCamera)
+                AddLog("Anti-spoof bypassed (virtual camera)");
+        }
+        else
+        {
+            IsCameraRunning = false;
+            StatusText = $"Failed to open {value.Name}";
+            AddLog($"Camera switch failed: {value.Name}");
+        }
     }
 
     // ──────────────────────────────────────────────
@@ -134,6 +177,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (IsCameraRunning)
         {
             _camera.Stop();
+            _pipeline.SkipAntiSpoof = false;
             IsCameraRunning = false;
             StatusText = "Camera stopped.";
             FpsText = "FPS: --";
@@ -141,18 +185,52 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         else
         {
-            bool success = _camera.Start(0);
+            if (SelectedCamera == null)
+            {
+                StatusText = "No camera selected. Click Refresh to scan for devices.";
+                AddLog("No camera selected");
+                return;
+            }
+
+            bool success = _camera.Start(SelectedCamera);
             if (success)
             {
                 IsCameraRunning = true;
-                StatusText = "Camera running — detecting faces...";
-                AddLog("Camera started");
+                _pipeline.SkipAntiSpoof = SelectedCamera.IsPhoneCamera;
+                StatusText = $"Camera running ({SelectedCamera.Name}) — detecting faces...";
+                AddLog($"Camera started: {SelectedCamera.Name}");
+                if (SelectedCamera.IsPhoneCamera)
+                    AddLog("Anti-spoof bypassed (virtual camera)");
             }
             else
             {
-                StatusText = "Failed to open camera. Check connection.";
+                StatusText = $"Failed to open {SelectedCamera.Name}. Check connection.";
                 AddLog("Camera failed to start");
             }
+        }
+    }
+
+    [RelayCommand]
+    private void RefreshCameraDevices()
+    {
+        var devices = _camera.GetAvailableDevices();
+
+        CameraDevices.Clear();
+        foreach (var device in devices)
+            CameraDevices.Add(device);
+
+        var selected = _camera.AutoSelectDevice(devices);
+        SelectedCamera = selected;
+
+        if (devices.Count == 0)
+        {
+            AddLog("No cameras found");
+        }
+        else
+        {
+            AddLog($"Found {devices.Count} camera(s)");
+            if (selected != null)
+                AddLog($"Auto-selected: {selected.Name}");
         }
     }
 

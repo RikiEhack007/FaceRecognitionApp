@@ -43,6 +43,13 @@ public class RecognitionPipeline : IDisposable
     private readonly AntiSpoofService _antiSpoof;
     private bool _disposed;
 
+    /// <summary>
+    /// When true, skip ML anti-spoofing checks (treat all faces as real).
+    /// Enable this for virtual/phone cameras (Phone Link, DroidCam, etc.)
+    /// which trigger false positives because the model sees screen artifacts.
+    /// </summary>
+    public bool SkipAntiSpoof { get; set; }
+
     // ─── Last processed results (displayed on all frames) ───
     private readonly object _resultsLock = new();
     private List<RecognitionResult> _lastResults = new();
@@ -221,12 +228,20 @@ public class RecognitionPipeline : IDisposable
                         result.Person = match.IsMatch ? match.Person : null;
                     }
 
-                    // Per-face ML anti-spoofing (replaces hand-crafted texture checks)
-                    var spoofSw = Stopwatch.StartNew();
-                    var spoofResult = _antiSpoof.Predict(frame, face.Box);
-                    result.IsSpoofDetected = !spoofResult.IsReal;
-                    spoofSw.Stop();
-                    Console.WriteLine($"[Pipeline]   Face[{i}] Spoof: {spoofSw.ElapsedMilliseconds}ms → {(spoofResult.IsReal ? "REAL" : "SPOOF")} (conf={spoofResult.Confidence:F3})");
+                    // Per-face ML anti-spoofing (skipped for virtual/phone cameras)
+                    if (SkipAntiSpoof)
+                    {
+                        result.IsSpoofDetected = false;
+                        Console.WriteLine($"[Pipeline]   Face[{i}] Spoof: SKIPPED (virtual camera)");
+                    }
+                    else
+                    {
+                        var spoofSw = Stopwatch.StartNew();
+                        var spoofResult = _antiSpoof.Predict(frame, face.Box);
+                        result.IsSpoofDetected = !spoofResult.IsReal;
+                        spoofSw.Stop();
+                        Console.WriteLine($"[Pipeline]   Face[{i}] Spoof: {spoofSw.ElapsedMilliseconds}ms → {(spoofResult.IsReal ? "REAL" : "SPOOF")} (conf={spoofResult.Confidence:F3})");
+                    }
 
                     // Liveness check — only run on the primary (largest) face.
                     // Secondary faces never get liveness confirmation to prevent

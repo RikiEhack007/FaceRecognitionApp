@@ -39,6 +39,7 @@
     <!-- ==================== DI Container ==================== -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.13" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.13" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.13" />
 
     <!-- ==================== EF Core Tools ==================== -->
     <!-- Required by dotnet ef CLI when this project is the startup project -->

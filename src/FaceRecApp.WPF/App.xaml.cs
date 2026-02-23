@@ -73,6 +73,13 @@ public partial class App : Application
 
         Services = services.BuildServiceProvider();
 
+        // ── Configure CameraService from appsettings ──
+        var cameraService = Services.GetRequiredService<CameraService>();
+        var recognition = configuration.GetSection("Recognition");
+        cameraService.MaxProbeDevices = recognition.GetValue("MaxProbeDevices", 10);
+        cameraService.PreferredDeviceName = recognition.GetValue("PreferredDeviceName", "") ?? "";
+        cameraService.PreferPhoneCamera = recognition.GetValue("PreferPhoneCamera", false);
+
         // ── Ensure database exists ──
         InitializeDatabase();
     }

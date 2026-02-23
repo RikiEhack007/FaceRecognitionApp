@@ -36,6 +36,8 @@ public partial class RegisterWindow : System.Windows.Window
 
         Loaded += (_, _) =>
         {
+            PopulateCameraDevices();
+
             if (_camera.IsRunning)
             {
                 _previewTimer.Start();
@@ -137,6 +139,22 @@ public partial class RegisterWindow : System.Windows.Window
             _isRegistering = false;
             CaptureButton.IsEnabled = true;
         }
+    }
+
+    private void PopulateCameraDevices()
+    {
+        var devices = _camera.GetAvailableDevices();
+        CameraSelector.ItemsSource = devices;
+        CameraSelector.DisplayMemberPath = "Name";
+
+        var selected = _camera.AutoSelectDevice(devices);
+        if (selected != null)
+            CameraSelector.SelectedItem = selected;
+    }
+
+    private void OnRefreshCamerasClick(object sender, RoutedEventArgs e)
+    {
+        PopulateCameraDevices();
     }
 
     private void OnCancelClick(object sender, RoutedEventArgs e)

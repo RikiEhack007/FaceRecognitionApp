@@ -1,3 +1,4 @@
+using System.Management;
 using OpenCvSharp;
 using FaceRecApp.Core.Entities;
 
@@ -5,18 +6,18 @@ namespace FaceRecApp.Core.Services;
 
 /// <summary>
 /// Manages webcam capture using OpenCvSharp.
-/// 
+///
 /// Architecture:
 ///   - Runs a continuous capture loop on a background thread
 ///   - Fires FrameCaptured event for every new frame (~30fps)
 ///   - The UI subscribes to display the live feed
 ///   - The RecognitionPipeline subscribes to process frames for faces
-/// 
+///
 /// Thread model:
 ///   - Capture runs on its own dedicated thread
 ///   - Events are fired on the capture thread (NOT the UI thread)
 ///   - Subscribers must use Dispatcher.Invoke() for UI updates
-/// 
+///
 /// Lifecycle:
 ///   1. new CameraService() → constructor (lightweight)
 ///   2. StartAsync()        → opens webcam + starts capture loop
@@ -38,10 +39,10 @@ public class CameraService : IDisposable
 
     /// <summary>
     /// Fired for every captured frame. Subscribers receive the raw Mat.
-    /// 
+    ///
     /// WARNING: This fires on the capture thread, not the UI thread.
     /// For WPF display, use Dispatcher.Invoke() or convert to frozen BitmapSource.
-    /// 
+    ///
     /// The Mat is reused between frames — if you need to keep it,
     /// call mat.Clone() before the event handler returns.
     /// </summary>
@@ -69,6 +70,170 @@ public class CameraService : IDisposable
     /// </summary>
     public long TotalFrames { get; private set; }
 
+    // ─── Configuration Properties ───
+
+    /// <summary>
+    /// Maximum number of OpenCV device indices to probe (default 10).
+    /// </summary>
+    public int MaxProbeDevices { get; set; } = 10;
+
+    /// <summary>
+    /// Preferred camera device name. If set, AutoSelectDevice will prioritize
+    /// devices whose name contains this string (case-insensitive).
+    /// </summary>
+    public string PreferredDeviceName { get; set; } = "";
+
+    /// <summary>
+    /// When true, AutoSelectDevice prefers phone/virtual cameras over physical ones.
+    /// </summary>
+    public bool PreferPhoneCamera { get; set; }
+
+    // ─── Phone/Virtual Camera Detection Patterns ───
+
+    private static readonly string[] PhoneCameraPatterns =
+    [
+        "phone link", "link to windows", "windows virtual camera",
+        "cross device", "droidcam", "iriun", "epoccam", "camo",
+        "obs virtual", "virtual camera", "snap camera",
+        "xsplit vcam", "manycam", "newtek ndi"
+    ];
+
+    // ──────────────────────────────────────────────
+    // Device Enumeration
+    // ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Enumerates available camera devices by combining WMI device names
+    /// with OpenCV probe results. Tags phone/virtual cameras via pattern matching.
+    /// </summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    public List<CameraDeviceInfo> GetAvailableDevices()
+    {
+        var wmiDevices = GetWmiCameraDevices();
+        var devices = new List<CameraDeviceInfo>();
+
+        for (int i = 0; i < MaxProbeDevices; i++)
+        {
+            try
+            {
+                using var testCapture = new VideoCapture(i);
+                if (!testCapture.IsOpened())
+                    break; // No more devices
+
+                // Correlate with WMI by index (heuristic — standard approach)
+                string name = i < wmiDevices.Count ? wmiDevices[i].name : $"Camera {i}";
+                string deviceId = i < wmiDevices.Count ? wmiDevices[i].deviceId : "";
+                bool isPhone = IsPhoneCameraName(name);
+
+                devices.Add(new CameraDeviceInfo
+                {
+                    Index = i,
+                    Name = name,
+                    IsPhoneCamera = isPhone,
+                    DeviceId = deviceId
+                });
+            }
+            catch
+            {
+                // Device probe failed — skip this index
+            }
+        }
+
+        return devices;
+    }
+
+    /// <summary>
+    /// Queries WMI for camera/imaging devices with friendly names.
+    /// Searches PNPClass Image/Camera and also SoftwareDevice entries
+    /// that contain "camera" in their name (catches Phone Link, virtual cameras).
+    /// </summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static List<(string name, string deviceId)> GetWmiCameraDevices()
+    {
+        var results = new List<(string name, string deviceId)>();
+
+        try
+        {
+            // Query 1: Traditional hardware cameras (PNPClass = Image or Camera)
+            // Query 2: Virtual/software cameras like Phone Link (PNPClass = SoftwareDevice, name contains camera)
+            using var searcher = new ManagementObjectSearcher(
+                "SELECT Name, DeviceID, PNPClass FROM Win32_PnPEntity " +
+                "WHERE PNPClass = 'Image' OR PNPClass = 'Camera' " +
+                "OR (PNPClass = 'SoftwareDevice' AND Name LIKE '%camera%')");
+
+            foreach (var obj in searcher.Get())
+            {
+                var name = obj["Name"]?.ToString() ?? "Unknown";
+                var deviceId = obj["DeviceID"]?.ToString() ?? "";
+                results.Add((name, deviceId));
+            }
+        }
+        catch
+        {
+            // WMI not available — fallback to index-based names
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// Checks if a device name matches known phone/virtual camera patterns.
+    /// </summary>
+    private static bool IsPhoneCameraName(string name)
+    {
+        var lower = name.ToLowerInvariant();
+        foreach (var pattern in PhoneCameraPatterns)
+        {
+            if (lower.Contains(pattern))
+                return true;
+        }
+        return false;
+    }
+
+    // ──────────────────────────────────────────────
+    // Auto-Select
+    // ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Selects the best camera device based on configuration preferences.
+    ///
+    /// Priority:
+    ///   1. PreferredDeviceName match (case-insensitive contains)
+    ///   2. Phone camera (if PreferPhoneCamera is true)
+    ///   3. First physical (non-phone) camera
+    ///   4. First device in list
+    /// </summary>
+    public CameraDeviceInfo? AutoSelectDevice(List<CameraDeviceInfo> devices)
+    {
+        if (devices.Count == 0)
+            return null;
+
+        // 1. Preferred device name match
+        if (!string.IsNullOrWhiteSpace(PreferredDeviceName))
+        {
+            var preferred = devices.FirstOrDefault(d =>
+                d.Name.Contains(PreferredDeviceName, StringComparison.OrdinalIgnoreCase));
+            if (preferred != null)
+                return preferred;
+        }
+
+        // 2. Phone camera preference
+        if (PreferPhoneCamera)
+        {
+            var phone = devices.FirstOrDefault(d => d.IsPhoneCamera);
+            if (phone != null)
+                return phone;
+        }
+
+        // 3. First physical camera
+        var physical = devices.FirstOrDefault(d => !d.IsPhoneCamera);
+        if (physical != null)
+            return physical;
+
+        // 4. Fallback: first device
+        return devices[0];
+    }
+
     // ──────────────────────────────────────────────
     // Start / Stop
     // ──────────────────────────────────────────────
@@ -77,8 +242,9 @@ public class CameraService : IDisposable
     /// Open the webcam and start the capture loop.
     /// </summary>
     /// <param name="cameraIndex">Camera device index (0 = default webcam)</param>
+    /// <param name="useDirectShow">Use DirectShow backend (better for virtual cameras)</param>
     /// <returns>true if camera opened successfully</returns>
-    public bool Start(int cameraIndex = 0)
+    public bool Start(int cameraIndex = 0, bool useDirectShow = false)
     {
         if (_isRunning)
             return true;
@@ -87,7 +253,9 @@ public class CameraService : IDisposable
         {
             try
             {
-                _capture = new VideoCapture(cameraIndex);
+                _capture = useDirectShow
+                    ? new VideoCapture(cameraIndex, VideoCaptureAPIs.DSHOW)
+                    : new VideoCapture(cameraIndex);
 
                 if (!_capture.IsOpened())
                 {
@@ -131,6 +299,15 @@ public class CameraService : IDisposable
                 return false;
             }
         }
+    }
+
+    /// <summary>
+    /// Open a specific camera device and start the capture loop.
+    /// Uses DirectShow backend automatically for phone/virtual cameras.
+    /// </summary>
+    public bool Start(CameraDeviceInfo device)
+    {
+        return Start(device.Index, useDirectShow: device.IsPhoneCamera);
     }
 
     /// <summary>

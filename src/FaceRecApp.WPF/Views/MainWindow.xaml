@@ -32,6 +32,19 @@
                            VerticalAlignment="Center"/>
 
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <ComboBox ItemsSource="{Binding CameraDevices}"
+                              SelectedItem="{Binding SelectedCamera}"
+                              DisplayMemberPath="Name"
+                              Width="180" Margin="0,0,4,0"
+                              Style="{StaticResource DarkComboBox}"/>
+                    <Button Content="&#x21BB;"
+                            Command="{Binding RefreshCameraDevicesCommand}"
+                            Style="{StaticResource BtnBase}"
+                            Foreground="{StaticResource TextOnDark}"
+                            Background="#3D3835"
+                            FontSize="14" Width="32"
+                            ToolTip="Refresh camera list"
+                            Margin="0,0,6,0"/>
                     <Button Content="{Binding IsCameraRunning, Converter={x:Static local:Converters.CameraButtonText}}"
                             Command="{Binding ToggleCameraCommand}"
                             Style="{StaticResource BtnPrimary}"
