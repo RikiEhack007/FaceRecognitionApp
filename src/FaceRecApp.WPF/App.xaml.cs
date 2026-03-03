@@ -1,6 +1,7 @@
 using System.Windows;
 using FaceRecApp.Core.Data;
 using FaceRecApp.Core.Services;
+using FaceRecApp.WPF.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -55,9 +56,13 @@ public partial class App : Application
         services.AddSingleton<LivenessService>();
         services.AddSingleton<AntiSpoofService>();
         services.AddSingleton<CameraService>();
+        services.AddSingleton<FingerprintService>();
 
         // Transient: FaceRepository creates short-lived DbContext per operation
         services.AddTransient<FaceRepository>();
+
+        // Transient: PidGenerationService for auto-generating patient IDs
+        services.AddTransient<PidGenerationService>();
 
         // Transient: BenchmarkService for performance testing
         services.AddTransient<BenchmarkService>();
@@ -79,6 +84,11 @@ public partial class App : Application
         cameraService.MaxProbeDevices = recognition.GetValue("MaxProbeDevices", 10);
         cameraService.PreferredDeviceName = recognition.GetValue("PreferredDeviceName", "") ?? "";
         cameraService.PreferPhoneCamera = recognition.GetValue("PreferPhoneCamera", false);
+
+        // ── Configure PidGenerationService from appsettings ──
+        var pidService = Services.GetRequiredService<PidGenerationService>();
+        var patientIdSection = configuration.GetSection("PatientId");
+        pidService.SiteCode = patientIdSection.GetValue("SiteCode", "R") ?? "R";
 
         // ── Ensure database exists ──
         InitializeDatabase();

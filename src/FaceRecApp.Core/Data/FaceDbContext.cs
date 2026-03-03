@@ -4,26 +4,24 @@ using Microsoft.EntityFrameworkCore;
 namespace FaceRecApp.Core.Data;
 
 /// <summary>
-/// Entity Framework Core database context for the face recognition system.
-/// 
+/// Entity Framework Core database context for the patient identification system.
+///
 /// Targets SQL Server 2025 with native VECTOR(512) column type for face embeddings.
-/// 
-/// Setup:
-///   1. Install SQL Server 2025 Express
-///   2. Update connection string in appsettings.json
-///   3. Run: dotnet ef migrations add InitialCreate -p src/FaceRecApp.Core -s src/FaceRecApp.WPF
-///   4. Run: dotnet ef database update -p src/FaceRecApp.Core -s src/FaceRecApp.WPF
-///   
-/// The database will be created automatically with:
-///   - Persons table (registered individuals)
-///   - FaceEmbeddings table (with VECTOR(512) column)
-///   - RecognitionLogs table (audit trail)
+///
+/// Tables:
+///   - Patients (registered patients with demographics)
+///   - FaceEmbeddings (with VECTOR(512) column)
+///   - FingerprintTemplates (fingerprint enrollment data)
+///   - Visits (service routing)
+///   - RecognitionLogs (audit trail)
 /// </summary>
 public class FaceDbContext : DbContext
 {
     public DbSet<Person> Persons => Set<Person>();
     public DbSet<FaceEmbedding> FaceEmbeddings => Set<FaceEmbedding>();
     public DbSet<RecognitionLog> RecognitionLogs => Set<RecognitionLog>();
+    public DbSet<FingerprintTemplate> FingerprintTemplates => Set<FingerprintTemplate>();
+    public DbSet<Visit> Visits => Set<Visit>();
 
     public FaceDbContext(DbContextOptions<FaceDbContext> options) : base(options)
     {
@@ -34,18 +32,32 @@ public class FaceDbContext : DbContext
         base.OnModelCreating(modelBuilder);
 
         // ──────────────────────────────────────────────
-        // Person Configuration
+        // Patient Configuration
         // ──────────────────────────────────────────────
         modelBuilder.Entity<Person>(entity =>
         {
-            entity.ToTable("Persons");
+            entity.ToTable("Patients");
 
-            entity.HasIndex(e => e.Name);
+            entity.HasIndex(e => e.FullName);
+            entity.HasIndex(e => e.IDCard).IsUnique();
             entity.HasIndex(e => e.ExternalId).IsUnique().HasFilter("[ExternalId] IS NOT NULL");
             entity.HasIndex(e => e.IsActive);
+            entity.HasIndex(e => e.Site);
 
-            // Cascade delete: removing a person also removes their face embeddings
+            // Cascade delete: removing a patient also removes their face embeddings
             entity.HasMany(e => e.FaceEmbeddings)
+                  .WithOne(e => e.Person)
+                  .HasForeignKey(e => e.PersonId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            // Cascade delete: removing a patient also removes their fingerprint templates
+            entity.HasMany(e => e.FingerprintTemplates)
+                  .WithOne(e => e.Person)
+                  .HasForeignKey(e => e.PersonId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            // Cascade delete: removing a patient also removes their visits
+            entity.HasMany(e => e.Visits)
                   .WithOne(e => e.Person)
                   .HasForeignKey(e => e.PersonId)
                   .OnDelete(DeleteBehavior.Cascade);
@@ -58,16 +70,32 @@ public class FaceDbContext : DbContext
         {
             entity.ToTable("FaceEmbeddings");
 
-            // ⭐ Map float[] to SQL Server 2025 native VECTOR(512) type.
-            // This is what enables VECTOR_DISTANCE() in T-SQL queries.
-            // 
-            // The EFCore.SqlServer.VectorSearch plugin translates:
-            //   C#:  EF.Functions.VectorDistance("cosine", e.Embedding, queryVector)
-            //   SQL: VECTOR_DISTANCE('cosine', [Embedding], @p0)
+            // Map float[] to SQL Server 2025 native VECTOR(512) type.
             entity.Property(e => e.Embedding)
                   .HasColumnType("vector(512)");
 
             entity.HasIndex(e => e.PersonId);
+        });
+
+        // ──────────────────────────────────────────────
+        // FingerprintTemplate Configuration
+        // ──────────────────────────────────────────────
+        modelBuilder.Entity<FingerprintTemplate>(entity =>
+        {
+            entity.HasIndex(e => e.PersonId);
+            entity.HasIndex(e => e.FingerType);
+        });
+
+        // ──────────────────────────────────────────────
+        // Visit Configuration
+        // ──────────────────────────────────────────────
+        modelBuilder.Entity<Visit>(entity =>
+        {
+            entity.ToTable("Visits");
+
+            entity.HasIndex(e => e.PersonId);
+            entity.HasIndex(e => e.VisitDate);
+            entity.HasIndex(e => e.ServiceType);
         });
 
         // ──────────────────────────────────────────────
@@ -81,8 +109,7 @@ public class FaceDbContext : DbContext
             entity.HasIndex(e => e.PersonId);
             entity.HasIndex(e => e.WasRecognized);
 
-            // Don't cascade: if a person is deleted, keep the logs
-            // (set PersonId to NULL via SetNull)
+            // Don't cascade: if a patient is deleted, keep the logs
             entity.HasOne(e => e.Person)
                   .WithMany()
                   .HasForeignKey(e => e.PersonId)

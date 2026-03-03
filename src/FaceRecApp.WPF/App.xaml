@@ -33,6 +33,14 @@
         <SolidColorBrush x:Key="AccentDangerHover" Color="#A04F49"/>
         <SolidColorBrush x:Key="AccentAmber"     Color="#C49A52"/>
 
+        <!-- Status surfaces -->
+        <SolidColorBrush x:Key="BgWarning"      Color="#FFF8E1"/>
+        <SolidColorBrush x:Key="TextWarning"    Color="#8B6914"/>
+        <SolidColorBrush x:Key="BgSuccess"      Color="#E8F5E9"/>
+        <SolidColorBrush x:Key="TextSuccess"    Color="#2E7D32"/>
+        <SolidColorBrush x:Key="BgInfoLight"    Color="#F0F4F8"/>
+        <SolidColorBrush x:Key="TextInfo"       Color="#4A6785"/>
+
         <!-- Button surfaces -->
         <SolidColorBrush x:Key="BtnDefault"      Color="#EDEAE6"/>
         <SolidColorBrush x:Key="BtnDefaultHover"  Color="#E0DBD5"/>

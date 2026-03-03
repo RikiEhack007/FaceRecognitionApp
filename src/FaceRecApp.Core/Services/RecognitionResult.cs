@@ -115,7 +115,7 @@ public class RecognitionResult
 
             string name;
             if (IsRecognized && Person != null)
-                name = $"{Person.Name} ({SimilarityText})";
+                name = $"{Person.FullName} ({SimilarityText})";
             else
                 name = $"Unknown ({SimilarityText})";
 

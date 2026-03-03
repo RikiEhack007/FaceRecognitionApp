@@ -197,7 +197,8 @@ public class BenchmarkService
             {
                 var person = new Person
                 {
-                    Name = $"Synthetic Person #{i + 1:D6}",
+                    FullName = $"Synthetic Person #{i + 1:D6}",
+                    IDCard = $"X{i + 1:D5}",
                     Notes = "Synthetic benchmark data -- safe to delete",
                     CreatedAt = DateTime.UtcNow,
                     LastSeenAt = DateTime.UtcNow,

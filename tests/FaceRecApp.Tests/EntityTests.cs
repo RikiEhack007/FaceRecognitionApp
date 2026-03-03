@@ -12,9 +12,9 @@ public class EntityTests
     [Fact]
     public void Person_DefaultValues_AreCorrect()
     {
-        var person = new Person { Name = "John Doe" };
+        var person = new Person { FullName = "John Doe", IDCard = "R00001" };
 
-        Assert.Equal("John Doe", person.Name);
+        Assert.Equal("John Doe", person.FullName);
         Assert.True(person.IsActive);
         Assert.Equal(0, person.TotalRecognitions);
         Assert.NotEmpty(person.FaceEmbeddings.GetType().Name); // Collection initialized

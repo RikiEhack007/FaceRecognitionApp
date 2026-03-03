@@ -1,11 +1,12 @@
 using System.Windows;
+using System.Windows.Input;
 using FaceRecApp.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace FaceRecApp.WPF.Views;
 
 /// <summary>
-/// Database management window — shows all registered persons, stats, and allows deletion.
+/// Patient database management window — shows all patients, search, stats, and allows deletion.
 /// </summary>
 public partial class DatabaseWindow : Window
 {
@@ -22,14 +23,12 @@ public partial class DatabaseWindow : Window
     {
         try
         {
-            // Load persons
             var persons = await _repository.GetAllPersonsAsync();
             PersonsGrid.ItemsSource = persons;
 
-            // Load stats
             var stats = await _repository.GetStatsAsync();
-            StatPersons.Text = $"Persons: {stats.TotalPersons}";
-            StatSamples.Text = $"Face Samples: {stats.TotalEmbeddings} (avg: {stats.AverageSamplesPerPerson:F1}/person)";
+            StatPersons.Text = $"Patients: {stats.TotalPersons}";
+            StatSamples.Text = $"Face Samples: {stats.TotalEmbeddings} (avg: {stats.AverageSamplesPerPerson:F1}/patient)";
             StatRecognitions.Text = $"Total Recognitions: {stats.TotalRecognitions}";
             StatRate.Text = $"Recognition Rate: {stats.RecognitionRate:F1}%";
         }
@@ -40,8 +39,41 @@ public partial class DatabaseWindow : Window
         }
     }
 
+    private async void OnSearchClick(object sender, RoutedEventArgs e)
+    {
+        await PerformSearch();
+    }
+
+    private async void OnSearchKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+            await PerformSearch();
+    }
+
+    private async Task PerformSearch()
+    {
+        var query = SearchInput.Text.Trim();
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            await LoadDataAsync();
+            return;
+        }
+
+        try
+        {
+            var results = await _repository.SearchPatientsByNameAsync(query);
+            PersonsGrid.ItemsSource = results;
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Search failed: {ex.Message}", "Error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private async void OnRefreshClick(object sender, RoutedEventArgs e)
     {
+        SearchInput.Clear();
         await LoadDataAsync();
     }
 
@@ -49,13 +81,13 @@ public partial class DatabaseWindow : Window
     {
         if (PersonsGrid.SelectedItem is not PersonSummary selected)
         {
-            MessageBox.Show("Please select a person to delete.", "No Selection",
+            MessageBox.Show("Please select a patient to delete.", "No Selection",
                 MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
         var confirm = MessageBox.Show(
-            $"Are you sure you want to delete '{selected.Name}' and all their face samples?\n\nThis cannot be undone.",
+            $"Are you sure you want to delete '{selected.Name}' (PID: {selected.IDCard}) and all their records?\n\nThis cannot be undone.",
             "Confirm Delete",
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning);
@@ -71,6 +103,36 @@ public partial class DatabaseWindow : Window
         catch (Exception ex)
         {
             MessageBox.Show($"Failed to delete: {ex.Message}", "Error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void OnViewVisitsClick(object sender, RoutedEventArgs e)
+    {
+        if (PersonsGrid.SelectedItem is not PersonSummary selected)
+        {
+            MessageBox.Show("Please select a patient to view visits.", "No Selection",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        try
+        {
+            var patient = await _repository.GetPatientByPidAsync(selected.IDCard);
+            if (patient == null)
+            {
+                MessageBox.Show("Patient not found.", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var visitWindow = new VisitWindow(patient);
+            visitWindow.Owner = this;
+            visitWindow.ShowDialog();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Failed to load patient: {ex.Message}", "Error",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }

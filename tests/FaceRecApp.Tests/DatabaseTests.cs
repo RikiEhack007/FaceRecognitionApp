@@ -67,7 +67,7 @@ public class DatabaseTests : IDisposable
             "Test Person", embedding, notes: "Test");
 
         Assert.NotEqual(0, person.Id);
-        Assert.Equal("Test Person", person.Name);
+        Assert.Equal("Test Person", person.FullName);
         Assert.True(person.IsActive);
 
         // Verify in database

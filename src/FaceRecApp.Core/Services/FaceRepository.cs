@@ -218,6 +218,42 @@ public class FaceRepository
     }
 
     // ══════════════════════════════════════════════
+    //  VERIFY — 1:1 comparison against a specific patient
+    // ══════════════════════════════════════════════
+
+    /// <summary>
+    /// 1:1 verification: compare a query embedding against a specific patient's embeddings only.
+    /// Returns the closest match among that patient's stored face samples.
+    /// Brute-force KNN is fine since each patient typically has 1-5 embeddings.
+    /// </summary>
+    public async Task<FaceMatchResult?> VerifyAgainstPatientAsync(int personId, float[] queryEmbedding)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        var match = await db.FaceEmbeddings
+            .Include(e => e.Person)
+            .Where(e => e.PersonId == personId && e.Person.IsActive)
+            .Select(e => new
+            {
+                Embedding = e,
+                Distance = EF.Functions.VectorDistance("cosine", e.Embedding, queryEmbedding)
+            })
+            .OrderBy(x => x.Distance)
+            .FirstOrDefaultAsync();
+
+        if (match == null)
+            return null;
+
+        return new FaceMatchResult
+        {
+            Person = match.Embedding.Person,
+            FaceEmbedding = match.Embedding,
+            Distance = (float)match.Distance,
+            IsMatch = match.Distance <= RecognitionSettings.DistanceThreshold
+        };
+    }
+
+    // ══════════════════════════════════════════════
     //  REGISTRATION — Enroll a new person
     // ══════════════════════════════════════════════
 
@@ -255,12 +291,13 @@ public class FaceRepository
                 .FirstOrDefaultAsync(p => p.ExternalId == externalId);
             if (existing != null)
                 throw new InvalidOperationException(
-                    $"A person with external ID '{externalId}' already exists: {existing.Name}");
+                    $"A person with external ID '{externalId}' already exists: {existing.FullName}");
         }
 
         var person = new Person
         {
-            Name = name,
+            FullName = name,
+            IDCard = string.Empty, // Will be set by PidGenerationService for patient enrollment
             ExternalId = externalId,
             Notes = notes,
             CreatedAt = DateTime.UtcNow,
@@ -404,7 +441,10 @@ public class FaceRepository
             .Select(p => new PersonSummary
             {
                 Id = p.Id,
-                Name = p.Name,
+                IDCard = p.IDCard,
+                Name = p.FullName,
+                Site = p.Site,
+                Sex = p.Sex,
                 ExternalId = p.ExternalId,
                 Notes = p.Notes,
                 FaceSampleCount = p.FaceEmbeddings.Count,
@@ -446,20 +486,18 @@ public class FaceRepository
     }
 
     /// <summary>
-    /// Hard-delete a person and all their face embeddings.
+    /// Hard-delete a person and all their related records.
+    /// Cascade delete handles FaceEmbeddings, FingerprintTemplates, and Visits automatically.
     /// </summary>
     public async Task DeletePersonAsync(int personId)
     {
-
         await using var db = await _dbFactory.CreateDbContextAsync();
 
-        var person = await db.Persons
-            .Include(p => p.FaceEmbeddings)
-            .FirstOrDefaultAsync(p => p.Id == personId);
+        var person = await db.Persons.FindAsync(personId);
 
         if (person != null)
         {
-            db.Persons.Remove(person); // Cascade deletes embeddings
+            db.Persons.Remove(person);
             await db.SaveChangesAsync();
         }
     }
@@ -478,6 +516,217 @@ public class FaceRepository
             db.FaceEmbeddings.Remove(embedding);
             await db.SaveChangesAsync();
         }
+    }
+
+    // ══════════════════════════════════════════════
+    //  PATIENT SEARCH
+    // ══════════════════════════════════════════════
+
+    /// <summary>
+    /// Search patients by name (LIKE search on FullName, MotherName, FatherName).
+    /// </summary>
+    public async Task<List<PersonSummary>> SearchPatientsByNameAsync(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return new List<PersonSummary>();
+
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.Persons
+            .Where(p => p.IsActive &&
+                (p.FullName.Contains(query) ||
+                 (p.MotherName != null && p.MotherName.Contains(query)) ||
+                 (p.FatherName != null && p.FatherName.Contains(query))))
+            .Select(p => new PersonSummary
+            {
+                Id = p.Id,
+                IDCard = p.IDCard,
+                Name = p.FullName,
+                Site = p.Site,
+                Sex = p.Sex,
+                ExternalId = p.ExternalId,
+                Notes = p.Notes,
+                FaceSampleCount = p.FaceEmbeddings.Count,
+                TotalRecognitions = p.TotalRecognitions,
+                LastSeenAt = p.LastSeenAt,
+                CreatedAt = p.CreatedAt
+            })
+            .OrderBy(p => p.Name)
+            .Take(50)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Look up a patient by their exact PID (IDCard).
+    /// </summary>
+    public async Task<Person?> GetPatientByPidAsync(string pid)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.Persons
+            .Include(p => p.FaceEmbeddings)
+            .Include(p => p.FingerprintTemplates)
+            .Include(p => p.Visits)
+            .FirstOrDefaultAsync(p => p.IDCard == pid && p.IsActive);
+    }
+
+    /// <summary>
+    /// Check for duplicate patients by name (deduplication before enrollment).
+    /// Returns matching patients.
+    /// </summary>
+    public async Task<List<PersonSummary>> CheckDuplicateByNameAsync(string fullName)
+    {
+        if (string.IsNullOrWhiteSpace(fullName))
+            return new List<PersonSummary>();
+
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.Persons
+            .Where(p => p.IsActive && p.FullName == fullName)
+            .Select(p => new PersonSummary
+            {
+                Id = p.Id,
+                IDCard = p.IDCard,
+                Name = p.FullName,
+                Site = p.Site,
+                Sex = p.Sex,
+                FaceSampleCount = p.FaceEmbeddings.Count,
+                CreatedAt = p.CreatedAt
+            })
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Register a new patient with full demographics and face embedding.
+    /// Used by the EnrolmentWindow multi-step wizard.
+    /// </summary>
+    public async Task<Person> RegisterPatientAsync(
+        Person patient,
+        float[] embedding,
+        byte[]? thumbnail = null)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        var faceEmbedding = new FaceEmbedding
+        {
+            Embedding = embedding,
+            FaceThumbnail = thumbnail,
+            CaptureAngle = "front",
+            CapturedAt = DateTime.UtcNow,
+            Consent = true,
+            CreatedBy = Environment.UserName
+        };
+        patient.FaceEmbeddings.Add(faceEmbedding);
+
+        patient.CreatedAt = DateTime.UtcNow;
+        patient.LastSeenAt = DateTime.UtcNow;
+        patient.IsActive = true;
+
+        db.Persons.Add(patient);
+        await db.SaveChangesAsync();
+
+        return patient;
+    }
+
+    /// <summary>
+    /// Update a patient's demographics.
+    /// </summary>
+    public async Task UpdatePatientAsync(Person patient)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        db.Persons.Update(patient);
+        patient.ModifiedDate = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+    }
+
+    // ══════════════════════════════════════════════
+    //  VISITS
+    // ══════════════════════════════════════════════
+
+    /// <summary>
+    /// Create a new visit record.
+    /// </summary>
+    public async Task<Visit> CreateVisitAsync(Visit visit)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        db.Visits.Add(visit);
+        await db.SaveChangesAsync();
+        return visit;
+    }
+
+    /// <summary>
+    /// Get all visits for a patient, most recent first.
+    /// </summary>
+    public async Task<List<Visit>> GetPatientVisitsAsync(int personId)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.Visits
+            .Where(v => v.PersonId == personId)
+            .OrderByDescending(v => v.VisitDate)
+            .ToListAsync();
+    }
+
+    // ══════════════════════════════════════════════
+    //  FINGERPRINT TEMPLATES
+    // ══════════════════════════════════════════════
+
+    /// <summary>
+    /// Load all fingerprint templates from the database for 1:N matching.
+    /// Returns a dictionary mapping FingerprintTemplate.Id → (template bytes, PersonId).
+    /// The Id is used as the FID in the SDK's in-memory cache.
+    /// </summary>
+    public async Task<Dictionary<int, (byte[] Template, int PersonId)>> GetAllFingerprintTemplatesAsync()
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var fingerprints = await db.FingerprintTemplates
+            .Where(f => f.Template != null)
+            .Select(f => new { f.Id, f.Template, f.PersonId })
+            .ToListAsync();
+
+        return fingerprints.ToDictionary(
+            f => f.Id,
+            f => (f.Template!, f.PersonId));
+    }
+
+    /// <summary>
+    /// Store a fingerprint enrollment template for a patient.
+    /// Template can be null when capture failed (remark explains why).
+    /// </summary>
+    public async Task<FingerprintTemplate> AddFingerprintTemplateAsync(
+        int personId, string fingerType, byte[]? template, bool consent,
+        string? remark = null)
+    {
+        var record = new FingerprintTemplate
+        {
+            PersonId = personId,
+            FingerType = fingerType,
+            Template = template,
+            Consent = consent,
+            Remark = remark,
+            CaptureDate = DateTime.UtcNow,
+            CreatedBy = Environment.UserName
+        };
+
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        db.FingerprintTemplates.Add(record);
+        await db.SaveChangesAsync();
+        return record;
+    }
+
+    /// <summary>
+    /// Get the person who owns a specific fingerprint template.
+    /// Used to resolve SDK match FID → Person.
+    /// </summary>
+    public async Task<Person?> GetPersonByFingerprintIdAsync(int fingerprintId)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var fp = await db.FingerprintTemplates
+            .Include(f => f.Person)
+            .FirstOrDefaultAsync(f => f.Id == fingerprintId);
+        return fp?.Person;
     }
 
     // ══════════════════════════════════════════════
@@ -557,7 +806,10 @@ public class FaceMatchResult
 public class PersonSummary
 {
     public int Id { get; set; }
+    public string IDCard { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
+    public string? Site { get; set; }
+    public byte? Sex { get; set; }
     public string? ExternalId { get; set; }
     public string? Notes { get; set; }
     public int FaceSampleCount { get; set; }

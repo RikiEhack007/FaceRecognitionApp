@@ -15,6 +15,7 @@ public static class Converters
     public static readonly IValueConverter ZeroToVisible = new ZeroToVisibleConverter();
     public static readonly IValueConverter BoolToVis = new BoolToVisibilityConverter();
     public static readonly IValueConverter NullToVis = new NullToVisibilityConverter();
+    public static readonly IValueConverter NonEmptyToVisible = new NonEmptyStringToVisibilityConverter();
 }
 
 /// <summary>
@@ -85,6 +86,21 @@ public class NullToVisibilityConverter : IValueConverter
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
         return value != null ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotImplementedException();
+}
+
+/// <summary>
+/// Shows element when string is non-empty: "" = Collapsed, "text" = Visible.
+/// Used for PID display when patient is recognized.
+/// </summary>
+public class NonEmptyStringToVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        return value is string s && !string.IsNullOrEmpty(s) ? Visibility.Visible : Visibility.Collapsed;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

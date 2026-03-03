@@ -19,6 +19,23 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- ZK9500 Fingerprint Scanner SDK -->
+    <!-- Managed wrapper (C# P/Invoke bindings) -->
+    <Reference Include="libzkfpcsharp">
+      <HintPath>lib\libzkfpcsharp.dll</HintPath>
+    </Reference>
+    <None Update="lib\libzkfpcsharp.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <!-- Native DLL (required by managed wrapper via P/Invoke).
+         Must be in output ROOT (not lib\) so the runtime can find it. -->
+    <Content Include="lib\libzkfp.dll">
+      <Link>libzkfp.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Reference to Core library (business logic, entities, services) -->
     <ProjectReference Include="..\FaceRecApp.Core\FaceRecApp.Core.csproj" />
   </ItemGroup>

@@ -64,4 +64,12 @@ public class FaceEmbedding
     public float? QualityScore { get; set; }
 
     public DateTime CapturedAt { get; set; } = DateTime.UtcNow;
+
+    // ─── Consent & Audit ───
+
+    /// <summary>Whether patient consented to this face capture.</summary>
+    public bool Consent { get; set; } = true;
+
+    [MaxLength(50)]
+    public string? CreatedBy { get; set; }
 }

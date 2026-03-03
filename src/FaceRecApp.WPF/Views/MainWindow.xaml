@@ -4,8 +4,8 @@
         xmlns:vm="clr-namespace:FaceRecApp.WPF.ViewModels"
         xmlns:local="clr-namespace:FaceRecApp.WPF.Converters"
         Title="Face Recognition"
-        Height="720" Width="1120"
-        MinHeight="520" MinWidth="860"
+        Height="780" Width="1280"
+        MinHeight="580" MinWidth="1020"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource BgPrimary}">
 
@@ -49,7 +49,7 @@
                             Command="{Binding ToggleCameraCommand}"
                             Style="{StaticResource BtnPrimary}"
                             Width="120" Margin="0,0,6,0"/>
-                    <Button Content="Register"
+                    <Button Content="Enrol"
                             Command="{Binding OpenRegisterCommand}"
                             Style="{StaticResource BtnBase}"
                             Foreground="{StaticResource TextOnDark}"
@@ -87,9 +87,9 @@
         <!-- ══════════════════════════════════════ -->
         <Grid Grid.Row="1" Margin="16">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="3*"/>
+                <ColumnDefinition Width="5*"/>
                 <ColumnDefinition Width="16"/>
-                <ColumnDefinition Width="1*" MinWidth="260"/>
+                <ColumnDefinition Width="3*" MinWidth="320"/>
             </Grid.ColumnDefinitions>
 
             <!-- Camera Feed -->
@@ -116,91 +116,374 @@
                 </Grid>
             </Border>
 
-            <!-- Side Panel -->
-            <Grid Grid.Column="2">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="16"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
+            <!-- ═══════════════════════════════════════ -->
+            <!-- WORKFLOW PANEL (scrollable)              -->
+            <!-- ═══════════════════════════════════════ -->
+            <ScrollViewer Grid.Column="2"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
 
-                <!-- Detected Faces -->
-                <Border Grid.Row="0" Style="{StaticResource Card}">
-                    <StackPanel>
-                        <TextBlock Text="DETECTED FACES" Style="{StaticResource SectionHeader}"
-                                   Margin="0,0,0,10"/>
+                    <!-- ═══════════════════════════════ -->
+                    <!-- CARD 1: IDENTIFY                -->
+                    <!-- ═══════════════════════════════ -->
+                    <Border Style="{StaticResource Card}" Margin="0,0,0,8">
+                        <StackPanel>
+                            <TextBlock Text="IDENTIFY" Style="{StaticResource SectionHeader}"
+                                       Margin="0,0,0,10"/>
 
-                        <ItemsControl ItemsSource="{Binding CurrentResults}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Background="{StaticResource BgSurfaceDim}"
-                                            CornerRadius="4" Padding="10,8"
-                                            Margin="0,0,0,6">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding Name}"
-                                                           Foreground="{StaticResource TextPrimary}"
-                                                           FontSize="13" FontWeight="Medium"/>
-                                                <TextBlock Foreground="{StaticResource TextSecondary}"
-                                                           FontSize="11" Margin="0,2,0,0">
-                                                    <Run Text="{Binding Similarity, Mode=OneWay}"/>
-                                                </TextBlock>
-                                            </StackPanel>
-                                            <Border Grid.Column="1"
-                                                    Background="{Binding StatusColor}"
-                                                    CornerRadius="3" Padding="8,4"
-                                                    VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding Status}"
-                                                           Foreground="#FFFFFF"
-                                                           FontSize="10" FontWeight="Bold"/>
-                                            </Border>
-                                        </Grid>
+                            <!-- ① Face Recognition -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <TextBlock Text="&#x2460;" Foreground="{StaticResource AccentPrimary}"
+                                           FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="FACE RECOGNITION" Foreground="{StaticResource TextSecondary}"
+                                           FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"
+                                           />
+                            </StackPanel>
+                            <Button Content="Identify Patient (1:N)"
+                                    Command="{Binding IdentifyCommand}"
+                                    IsEnabled="{Binding IsCameraRunning}"
+                                    Style="{StaticResource BtnPrimary}"
+                                    HorizontalAlignment="Stretch"
+                                    Margin="0,0,0,12"/>
+
+                            <!-- ② Biometric Search -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <TextBlock Text="&#x2461;" Foreground="{StaticResource AccentPrimary}"
+                                           FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="BIOMETRIC SEARCH" Foreground="{StaticResource TextSecondary}"
+                                           FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"
+                                           />
+                            </StackPanel>
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="6"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Button Grid.Column="0"
+                                        Content="Search by Photo"
+                                        Command="{Binding PhotoSearchCommand}"
+                                        Style="{StaticResource BtnBase}"
+                                        HorizontalAlignment="Stretch"/>
+                                <Button Grid.Column="2"
+                                        Content="Fingerprint"
+                                        Command="{Binding FingerprintSearchCommand}"
+                                        Style="{StaticResource BtnBase}"
+                                        HorizontalAlignment="Stretch"/>
+                            </Grid>
+
+                            <!-- ③ Manual Search -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <TextBlock Text="&#x2462;" Foreground="{StaticResource AccentPrimary}"
+                                           FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="MANUAL SEARCH" Foreground="{StaticResource TextSecondary}"
+                                           FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"
+                                           />
+                            </StackPanel>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="6"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0"
+                                         Text="{Binding ManualSearchQuery, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{StaticResource InputBox}"/>
+                                <Button Grid.Column="2"
+                                        Content="Search"
+                                        Command="{Binding ManualSearchCommand}"
+                                        Style="{StaticResource BtnBase}"
+                                        Padding="14,8"/>
+                            </Grid>
+
+                            <!-- Search Results -->
+                            <ItemsControl ItemsSource="{Binding ManualSearchResults}"
+                                          Visibility="{Binding HasManualSearchResults, Converter={x:Static local:Converters.BoolToVis}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{StaticResource BgSurfaceDim}"
+                                                CornerRadius="4" Padding="8,6"
+                                                Margin="0,0,0,4">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding IDCard}"
+                                                                   Foreground="{StaticResource AccentPrimary}"
+                                                                   FontSize="11" FontWeight="SemiBold"
+                                                                   Margin="0,0,6,0"/>
+                                                        <TextBlock Text="{Binding Name}"
+                                                                   Foreground="{StaticResource TextPrimary}"
+                                                                   FontSize="12" FontWeight="Medium"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                                <Button Grid.Column="1"
+                                                        Content="Select"
+                                                        Command="{Binding DataContext.SelectPatientCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}"
+                                                        Style="{StaticResource BtnSmall}"
+                                                        VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- Identify Result Badge -->
+                            <Border Visibility="{Binding HasIdentifyResult, Converter={x:Static local:Converters.BoolToVis}}"
+                                    Margin="0,4,0,0">
+                                <StackPanel>
+                                    <DockPanel>
+                                        <Border DockPanel.Dock="Left"
+                                                Background="{Binding IdentifyResultColor}"
+                                                CornerRadius="3" Padding="10,4">
+                                            <TextBlock Text="{Binding IdentifyResultHeader}"
+                                                       Foreground="#FFFFFF"
+                                                       FontSize="11" FontWeight="Bold"/>
+                                        </Border>
+                                        <TextBlock DockPanel.Dock="Right"
+                                                   Text="{Binding PatientIdentifyTiming}"
+                                                   Style="{StaticResource MonoText}"
+                                                   VerticalAlignment="Center"
+                                                   HorizontalAlignment="Right"/>
+                                    </DockPanel>
+                                    <TextBlock Text="{Binding IdentifyResultText}"
+                                               Foreground="{StaticResource TextSecondary}"
+                                               FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap"
+                                               Visibility="{Binding IdentifyResultText, Converter={x:Static local:Converters.NonEmptyToVisible}}"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Enrol New (when unknown) -->
+                            <Button Content="Enrol New Patient"
+                                    Command="{Binding EnrolNewCommand}"
+                                    Style="{StaticResource BtnBase}"
+                                    HorizontalAlignment="Left"
+                                    Margin="0,8,0,0"
+                                    Visibility="{Binding ShowEnrolNewOption, Converter={x:Static local:Converters.BoolToVis}}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ═══════════════════════════════ -->
+                    <!-- CARD 2: PATIENT CARD            -->
+                    <!-- ═══════════════════════════════ -->
+                    <Border Style="{StaticResource Card}" Margin="0,0,0,8"
+                            Visibility="{Binding ShowPatientCard, Converter={x:Static local:Converters.BoolToVis}}">
+                        <StackPanel>
+                            <TextBlock Text="PATIENT" Style="{StaticResource SectionHeader}"
+                                       Margin="0,0,0,8"/>
+
+                            <!-- PID + Name + Sex/Age -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <TextBlock Text="{Binding PatientPid}"
+                                           Foreground="{StaticResource AccentPrimary}"
+                                           FontSize="14" FontWeight="SemiBold"
+                                           Margin="0,0,10,0"
+                                           Visibility="{Binding PatientPid, Converter={x:Static local:Converters.NonEmptyToVisible}}"/>
+                                <TextBlock Text="{Binding PatientName}"
+                                           Foreground="{StaticResource TextPrimary}"
+                                           FontSize="14" FontWeight="Medium"
+                                           Margin="0,0,10,0"/>
+                                <TextBlock Foreground="{StaticResource TextSecondary}"
+                                           FontSize="13" VerticalAlignment="Center">
+                                    <Run Text="{Binding PatientSex, Mode=OneWay}"/>
+                                    <Run Text="{Binding PatientAge, Mode=OneWay, StringFormat='  {0}'}"/>
+                                </TextBlock>
+                            </StackPanel>
+
+                            <!-- Biometric Update Warning -->
+                            <Border Background="{StaticResource BgWarning}"
+                                    CornerRadius="4" Padding="10,8"
+                                    Margin="0,6,0,0"
+                                    Visibility="{Binding NeedsBiometricUpdate, Converter={x:Static local:Converters.BoolToVis}}">
+                                <TextBlock Foreground="{StaticResource TextWarning}"
+                                           FontSize="12" TextWrapping="Wrap">
+                                    <Run FontWeight="SemiBold" Text="Biometric update recommended."/>
+                                    <Run Text="Patient found via name search. Face verification is recommended."/>
+                                </TextBlock>
+                            </Border>
+
+                            <!-- Action Buttons -->
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                <Button Content="Verify Face"
+                                        Command="{Binding GoToVerifyCommand}"
+                                        Style="{StaticResource BtnPrimary}"
+                                        Padding="12,6" Margin="0,0,6,0"
+                                        FontSize="12"/>
+                                <Button Content="Log Visit"
+                                        Command="{Binding GoToVisitCommand}"
+                                        Style="{StaticResource BtnBase}"
+                                        Padding="12,6" Margin="0,0,6,0"
+                                        FontSize="12"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ═══════════════════════════════ -->
+                    <!-- CARD 3: VERIFY (1:1)            -->
+                    <!-- ═══════════════════════════════ -->
+                    <Border Style="{StaticResource Card}" Margin="0,0,0,8"
+                            Visibility="{Binding ShowVerifySection, Converter={x:Static local:Converters.BoolToVis}}">
+                        <StackPanel>
+                            <TextBlock Text="VERIFY" Style="{StaticResource SectionHeader}"
+                                       Margin="0,0,0,10"/>
+
+                            <!-- Verify Button -->
+                            <Button Content="Verify Face (1:1)"
+                                    Command="{Binding VerifyPatientCommand}"
+                                    IsEnabled="{Binding IsCameraRunning}"
+                                    Style="{StaticResource BtnPrimary}"
+                                    HorizontalAlignment="Stretch"
+                                    Margin="0,0,0,8"/>
+
+                            <!-- Verify Result Badge -->
+                            <Border Visibility="{Binding HasVerifyResult, Converter={x:Static local:Converters.BoolToVis}}"
+                                    Margin="0,0,0,8">
+                                <StackPanel>
+                                    <Border Background="{Binding VerifyResultColor}"
+                                            CornerRadius="3" Padding="10,4"
+                                            HorizontalAlignment="Left">
+                                        <TextBlock Text="{Binding VerifyResultHeader}"
+                                                   Foreground="#FFFFFF"
+                                                   FontSize="11" FontWeight="Bold"/>
                                     </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                                    <TextBlock Text="{Binding VerifyResultText}"
+                                               Foreground="{StaticResource TextSecondary}"
+                                               FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap"
+                                               Visibility="{Binding VerifyResultText, Converter={x:Static local:Converters.NonEmptyToVisible}}"/>
+                                </StackPanel>
+                            </Border>
 
-                        <TextBlock Text="No faces detected"
-                                   Style="{StaticResource MutedText}"
-                                   Margin="0,4,0,0"
-                                   Visibility="{Binding CurrentResults.Count, Converter={x:Static local:Converters.ZeroToVisible}}"/>
-                    </StackPanel>
-                </Border>
+                            <!-- Facial Change Checkbox -->
+                            <CheckBox IsChecked="{Binding FacialChangeChecked}"
+                                      Foreground="{StaticResource TextPrimary}"
+                                      FontSize="12" Margin="0,0,0,4">
+                                <TextBlock Text="Facial Change (trauma, surgery, aging)"
+                                           TextWrapping="Wrap"/>
+                            </CheckBox>
+                            <TextBox Text="{Binding FacialChangeReason, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource InputBox}"
+                                     Margin="20,0,0,8"
+                                     Visibility="{Binding FacialChangeChecked, Converter={x:Static local:Converters.BoolToVis}}"/>
 
-                <!-- Activity Log -->
-                <Border Grid.Row="2" Style="{StaticResource Card}">
-                    <DockPanel>
-                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-                            <TextBlock Text="ACTIVITY" Style="{StaticResource SectionHeader}"
-                                       DockPanel.Dock="Left" VerticalAlignment="Center"/>
-                            <Button Content="Clear" Command="{Binding ClearLogCommand}"
-                                    DockPanel.Dock="Right"
-                                    Style="{StaticResource BtnSmall}"/>
+                            <!-- Update Photo -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <Button Content="Update Photo"
+                                        Command="{Binding UpdatePhotoCommand}"
+                                        IsEnabled="{Binding IsCameraRunning}"
+                                        Style="{StaticResource BtnBase}"
+                                        Padding="12,6" FontSize="12"/>
+                                <TextBlock Text="{Binding PhotoUpdateStatus}"
+                                           Foreground="{StaticResource TextSecondary}"
+                                           FontSize="12" VerticalAlignment="Center"
+                                           Margin="8,0,0,0"
+                                           Visibility="{Binding PhotoUpdateStatus, Converter={x:Static local:Converters.NonEmptyToVisible}}"/>
+                            </StackPanel>
+
+                            <!-- Continue to Visit -->
+                            <Button Content="Continue to Visit"
+                                    Command="{Binding GoToVisitCommand}"
+                                    Style="{StaticResource BtnPrimary}"
+                                    HorizontalAlignment="Stretch"
+                                    Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ═══════════════════════════════ -->
+                    <!-- CARD 4: VISIT                   -->
+                    <!-- ═══════════════════════════════ -->
+                    <Border Style="{StaticResource Card}" Margin="0,0,0,8"
+                            Visibility="{Binding ShowVisitSection, Converter={x:Static local:Converters.BoolToVis}}">
+                        <StackPanel>
+                            <TextBlock Text="LOG VISIT" Style="{StaticResource SectionHeader}"
+                                       Margin="0,0,0,10"/>
+
+                            <!-- Service Type -->
+                            <TextBlock Text="Service Type *" Style="{StaticResource FieldLabel}"/>
+                            <ComboBox ItemsSource="{Binding ServiceTypes}"
+                                      SelectedItem="{Binding VisitServiceType}"
+                                      Margin="0,0,0,10"/>
+
+                            <!-- Chief Complaint -->
+                            <TextBlock Text="Chief Complaint" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding VisitChiefComplaint, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource InputBox}"
+                                     TextWrapping="Wrap" AcceptsReturn="True"
+                                     Height="60" VerticalContentAlignment="Top"
+                                     Margin="0,0,0,10"/>
+
+                            <!-- Log Visit Button -->
+                            <Button Content="Log Visit"
+                                    Command="{Binding LogVisitCommand}"
+                                    Style="{StaticResource BtnPrimary}"
+                                    HorizontalAlignment="Stretch"
+                                    Margin="0,0,0,6"/>
+
+                            <!-- Success Message -->
+                            <Border Background="{StaticResource BgSuccess}"
+                                    CornerRadius="4" Padding="10,8"
+                                    Visibility="{Binding VisitLogged, Converter={x:Static local:Converters.BoolToVis}}">
+                                <TextBlock Text="Visit logged successfully."
+                                           Foreground="{StaticResource TextSuccess}"
+                                           FontSize="12" FontWeight="SemiBold"/>
+                            </Border>
+
+                            <!-- Print Routing Slip -->
+                            <Button Content="Print Routing Slip"
+                                    Command="{Binding PrintRoutingSlipCommand}"
+                                    Style="{StaticResource BtnBase}"
+                                    HorizontalAlignment="Stretch"
+                                    Margin="0,6,0,0"
+                                    Visibility="{Binding VisitLogged, Converter={x:Static local:Converters.BoolToVis}}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ═══════════════════════════════ -->
+                    <!-- CARD 5: ACTIVITY LOG            -->
+                    <!-- ═══════════════════════════════ -->
+                    <Border Style="{StaticResource Card}" Margin="0,0,0,8">
+                        <DockPanel>
+                            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                                <TextBlock Text="ACTIVITY" Style="{StaticResource SectionHeader}"
+                                           DockPanel.Dock="Left" VerticalAlignment="Center"/>
+                                <Button Content="Clear" Command="{Binding ClearLogCommand}"
+                                        DockPanel.Dock="Right"
+                                        Style="{StaticResource BtnSmall}"/>
+                            </DockPanel>
+
+                            <ListBox ItemsSource="{Binding ActivityLog}"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     Foreground="{StaticResource TextSecondary}"
+                                     FontSize="11"
+                                     FontFamily="Cascadia Code, Consolas, monospace"
+                                     MaxHeight="150"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="Padding" Value="0,2"/>
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Setter Property="BorderThickness" Value="0"/>
+                                        <Setter Property="Focusable" Value="False"/>
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                            </ListBox>
                         </DockPanel>
+                    </Border>
 
-                        <ListBox ItemsSource="{Binding ActivityLog}"
-                                 Background="Transparent"
-                                 BorderThickness="0"
-                                 Foreground="{StaticResource TextSecondary}"
-                                 FontSize="11"
-                                 FontFamily="Cascadia Code, Consolas, monospace"
-                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                            <ListBox.ItemContainerStyle>
-                                <Style TargetType="ListBoxItem">
-                                    <Setter Property="Padding" Value="0,2"/>
-                                    <Setter Property="Background" Value="Transparent"/>
-                                    <Setter Property="BorderThickness" Value="0"/>
-                                    <Setter Property="Focusable" Value="False"/>
-                                </Style>
-                            </ListBox.ItemContainerStyle>
-                        </ListBox>
-                    </DockPanel>
-                </Border>
-            </Grid>
+                    <!-- Start Over -->
+                    <Button Content="Start Over"
+                            Command="{Binding StartOverCommand}"
+                            Style="{StaticResource BtnSmall}"
+                            HorizontalAlignment="Right"
+                            Margin="0,0,0,8"/>
+
+                </StackPanel>
+            </ScrollViewer>
         </Grid>
 
         <!-- ══════════════════════════════════════ -->

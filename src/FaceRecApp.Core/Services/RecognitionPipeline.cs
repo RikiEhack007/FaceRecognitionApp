@@ -361,7 +361,7 @@ public class RecognitionPipeline : IDisposable
             var existingMatch = await _repository.FindClosestMatchAsync(embedding);
             if (existingMatch != null && existingMatch.IsMatch)
             {
-                result.Error = $"This face appears to already be registered as '{existingMatch.Person.Name}' " +
+                result.Error = $"This face appears to already be registered as '{existingMatch.Person.FullName}' " +
                                $"(similarity: {existingMatch.SimilarityText}). " +
                                "Use 'Add Sample' to add more photos to an existing person.";
                 result.ExistingPerson = existingMatch.Person;
@@ -417,6 +417,275 @@ public class RecognitionPipeline : IDisposable
         {
             return false;
         }
+    }
+
+    // ══════════════════════════════════════════════
+    //  IDENTIFY — Single-frame 1:N identification
+    // ══════════════════════════════════════════════
+
+    /// <summary>
+    /// Identify a person from a single camera frame.
+    /// Detects the largest face, generates embedding, runs 1:N search.
+    /// Acquires _isProcessing lock (ONNX models are NOT thread-safe).
+    /// </summary>
+    public async Task<IdentifyResult> IdentifyFromFrameAsync(Mat frame)
+    {
+        var sw = Stopwatch.StartNew();
+        var result = new IdentifyResult();
+
+        // Wait for any ongoing pipeline processing to finish (ONNX models are not thread-safe)
+        int spins = 0;
+        while (Interlocked.CompareExchange(ref _isProcessing, 1, 0) != 0)
+        {
+            await Task.Delay(50);
+            if (++spins > 40) // 2 seconds max wait
+            {
+                result.Error = "System busy processing frames. Try again in a moment.";
+                return result;
+            }
+        }
+
+        try
+        {
+            using var image = ImageConverter.MatToImageSharp(frame);
+
+            var face = _detector.DetectLargestFace(image);
+            if (face == null)
+            {
+                result.Error = "No face detected. Please ensure your face is clearly visible.";
+                return result;
+            }
+
+            var embedding = _recognizer.GenerateEmbedding(image, face.Value);
+            if (!FaceRecognitionService.IsValidEmbedding(embedding))
+            {
+                result.Error = "Failed to generate face embedding. Try again with better lighting.";
+                return result;
+            }
+
+            // Anti-spoof check (skip for virtual cameras)
+            if (!SkipAntiSpoof)
+            {
+                var spoofResult = _antiSpoof.Predict(frame, face.Value.Box);
+                if (!spoofResult.IsReal)
+                {
+                    result.Error = "Spoof detected. Please present a real face, not a photo or screen.";
+                    return result;
+                }
+            }
+
+            // 1:N search
+            var match = await _repository.FindClosestMatchAsync(embedding);
+
+            var recognition = new RecognitionResult
+            {
+                FaceBox = face.Value.Box,
+                Embedding = embedding,
+            };
+
+            if (match != null)
+            {
+                recognition.Distance = match.Distance;
+                recognition.IsRecognized = match.IsMatch;
+                recognition.Person = match.IsMatch ? match.Person : null;
+            }
+
+            result.Success = true;
+            result.Recognition = recognition;
+        }
+        catch (Exception ex)
+        {
+            result.Error = $"Identification failed: {ex.Message}";
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _isProcessing, 0);
+            sw.Stop();
+            result.Elapsed = sw.Elapsed;
+        }
+
+        return result;
+    }
+
+    // ══════════════════════════════════════════════
+    //  IDENTIFY FROM IMAGE — Photo-based 1:N search
+    // ══════════════════════════════════════════════
+
+    /// <summary>
+    /// Identify a person from a loaded image file (photo search).
+    /// Detects the largest face, generates embedding, runs 1:N search.
+    /// Used when face recognition from camera fails and user uploads a photo.
+    /// </summary>
+    public async Task<IdentifyResult> IdentifyFromImageAsync(Image<Rgb24> image)
+    {
+        var sw = Stopwatch.StartNew();
+        var result = new IdentifyResult();
+
+        // Acquire ONNX lock (same pattern as IdentifyFromFrameAsync)
+        int spins = 0;
+        while (Interlocked.CompareExchange(ref _isProcessing, 1, 0) != 0)
+        {
+            await Task.Delay(50);
+            if (++spins > 40)
+            {
+                result.Error = "System busy processing frames. Try again in a moment.";
+                return result;
+            }
+        }
+
+        try
+        {
+            var face = _detector.DetectLargestFace(image);
+            if (face == null)
+            {
+                result.Error = "No face detected in the photo.";
+                return result;
+            }
+
+            var embedding = _recognizer.GenerateEmbedding(image, face.Value);
+            if (!FaceRecognitionService.IsValidEmbedding(embedding))
+            {
+                result.Error = "Failed to generate face embedding from photo.";
+                return result;
+            }
+
+            // No anti-spoof for photo search (it IS a photo by definition)
+
+            var match = await _repository.FindClosestMatchAsync(embedding);
+
+            var recognition = new RecognitionResult
+            {
+                FaceBox = face.Value.Box,
+                Embedding = embedding,
+            };
+
+            if (match != null)
+            {
+                recognition.Distance = match.Distance;
+                recognition.IsRecognized = match.IsMatch;
+                recognition.Person = match.IsMatch ? match.Person : null;
+            }
+
+            result.Success = true;
+            result.Recognition = recognition;
+        }
+        catch (Exception ex)
+        {
+            result.Error = $"Photo search failed: {ex.Message}";
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _isProcessing, 0);
+            sw.Stop();
+            result.Elapsed = sw.Elapsed;
+        }
+
+        return result;
+    }
+
+    // ══════════════════════════════════════════════
+    //  VERIFY — Single-frame 1:1 verification
+    // ══════════════════════════════════════════════
+
+    /// <summary>
+    /// Verify a person against a specific patient's stored embeddings.
+    /// Detects the largest face, generates embedding, compares against that patient only.
+    /// Acquires _isProcessing lock (ONNX models are not thread-safe).
+    /// </summary>
+    public async Task<VerifyResult> VerifyFromFrameAsync(Mat frame, string pid)
+    {
+        var sw = Stopwatch.StartNew();
+        var result = new VerifyResult();
+
+        // Look up patient BEFORE acquiring lock (DB call is safe to run concurrently)
+        try
+        {
+            var patient = await _repository.GetPatientByPidAsync(pid);
+            if (patient == null)
+            {
+                result.Error = $"Patient with PID '{pid}' not found.";
+                return result;
+            }
+
+            if (patient.FaceEmbeddings.Count == 0)
+            {
+                result.Error = $"Patient '{patient.FullName}' has no enrolled face samples.";
+                result.Patient = patient;
+                return result;
+            }
+
+            result.Patient = patient;
+        }
+        catch (Exception ex)
+        {
+            result.Error = $"Failed to look up patient: {ex.Message}";
+            return result;
+        }
+
+        // Acquire lock for ONNX inference
+        int spins = 0;
+        while (Interlocked.CompareExchange(ref _isProcessing, 1, 0) != 0)
+        {
+            await Task.Delay(50);
+            if (++spins > 40)
+            {
+                result.Error = "System busy processing frames. Try again in a moment.";
+                return result;
+            }
+        }
+
+        try
+        {
+            using var image = ImageConverter.MatToImageSharp(frame);
+
+            var face = _detector.DetectLargestFace(image);
+            if (face == null)
+            {
+                result.Error = "No face detected. Please ensure your face is clearly visible.";
+                return result;
+            }
+
+            var embedding = _recognizer.GenerateEmbedding(image, face.Value);
+            if (!FaceRecognitionService.IsValidEmbedding(embedding))
+            {
+                result.Error = "Failed to generate face embedding. Try again with better lighting.";
+                return result;
+            }
+
+            // Anti-spoof check
+            if (!SkipAntiSpoof)
+            {
+                var spoofResult = _antiSpoof.Predict(frame, face.Value.Box);
+                if (!spoofResult.IsReal)
+                {
+                    result.Error = "Spoof detected. Please present a real face, not a photo or screen.";
+                    return result;
+                }
+            }
+
+            // 1:1 comparison against this patient only
+            var match = await _repository.VerifyAgainstPatientAsync(result.Patient!.Id, embedding);
+
+            if (match != null)
+            {
+                result.Distance = match.Distance;
+                result.IsVerified = match.IsMatch;
+            }
+
+            result.Success = true;
+        }
+        catch (Exception ex)
+        {
+            result.Error = $"Verification failed: {ex.Message}";
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _isProcessing, 0);
+            sw.Stop();
+            result.Elapsed = sw.Elapsed;
+        }
+
+        return result;
     }
 
     // ══════════════════════════════════════════════
@@ -508,4 +777,49 @@ public class RegistrationResult
     /// Allows the UI to offer "Add sample to existing person" instead.
     /// </summary>
     public Person? ExistingPerson { get; set; }
+}
+
+/// <summary>
+/// Result of a single-frame 1:N identification.
+/// </summary>
+public class IdentifyResult
+{
+    public bool Success { get; set; }
+    public string? Error { get; set; }
+
+    /// <summary>The recognition result (person, distance, embedding, etc.).</summary>
+    public RecognitionResult? Recognition { get; set; }
+
+    /// <summary>True if the face was not matched to anyone in the database.</summary>
+    public bool IsUnknown => Success && (Recognition == null || !Recognition.IsRecognized);
+
+    /// <summary>True if a known patient was identified.</summary>
+    public bool IsIdentified => Success && Recognition != null && Recognition.IsRecognized;
+
+    public TimeSpan Elapsed { get; set; }
+}
+
+/// <summary>
+/// Result of a single-frame 1:1 verification against a specific patient.
+/// </summary>
+public class VerifyResult
+{
+    public bool Success { get; set; }
+    public string? Error { get; set; }
+
+    /// <summary>The patient being verified against.</summary>
+    public Person? Patient { get; set; }
+
+    /// <summary>Best distance found among the patient's stored embeddings.</summary>
+    public float Distance { get; set; } = 1.0f;
+
+    public string SimilarityText => $"{(1f - Distance) * 100:F1}%";
+
+    /// <summary>True if distance is within the recognition threshold.</summary>
+    public bool IsVerified { get; set; }
+
+    /// <summary>True if distance is within the high-confidence threshold.</summary>
+    public bool IsHighConfidence => IsVerified && Distance <= RecognitionSettings.HighConfidenceDistance;
+
+    public TimeSpan Elapsed { get; set; }
 }

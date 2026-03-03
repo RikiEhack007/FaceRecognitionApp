@@ -4,6 +4,7 @@ using FaceRecApp.Core.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace FaceRecApp.Core.Migrations
 {
     [DbContext(typeof(FaceDbContext))]
-    partial class FaceDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260302162748_PatientIdentificationSystem")]
+    partial class PatientIdentificationSystem
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -22,7 +25,7 @@ namespace FaceRecApp.Core.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("FaceRecApp.Core.Entities.FaceEmbedding", b =>
+            modelBuilder.Entity("FaceRecApp.Core.Entities.Biometric", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -30,47 +33,10 @@ namespace FaceRecApp.Core.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("CaptureAngle")
+                    b.Property<string>("BiometricType")
+                        .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
-
-                    b.Property<DateTime>("CapturedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("Consent")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.PrimitiveCollection<string>("Embedding")
-                        .IsRequired()
-                        .HasColumnType("vector(512)");
-
-                    b.Property<byte[]>("FaceThumbnail")
-                        .HasColumnType("varbinary(max)");
-
-                    b.Property<int>("PersonId")
-                        .HasColumnType("int");
-
-                    b.Property<float?>("QualityScore")
-                        .HasColumnType("real");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PersonId");
-
-                    b.ToTable("FaceEmbeddings", (string)null);
-                });
-
-            modelBuilder.Entity("FaceRecApp.Core.Entities.FingerprintTemplate", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<DateTime>("CaptureDate")
                         .HasColumnType("datetime2");
@@ -86,10 +52,8 @@ namespace FaceRecApp.Core.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
-                    b.Property<string>("FingerType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
+                    b.Property<int?>("FaceEmbeddingId")
+                        .HasColumnType("int");
 
                     b.Property<string>("ModifiedBy")
                         .HasMaxLength(50)
@@ -110,11 +74,48 @@ namespace FaceRecApp.Core.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("FingerType");
+                    b.HasIndex("BiometricType");
+
+                    b.HasIndex("FaceEmbeddingId");
 
                     b.HasIndex("PersonId");
 
-                    b.ToTable("FingerprintTemplates");
+                    b.ToTable("Biometrics", (string)null);
+                });
+
+            modelBuilder.Entity("FaceRecApp.Core.Entities.FaceEmbedding", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CaptureAngle")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("CapturedAt")
+                        .HasColumnType("datetime2");
+
+                    b.PrimitiveCollection<string>("Embedding")
+                        .IsRequired()
+                        .HasColumnType("vector(512)");
+
+                    b.Property<byte[]>("FaceThumbnail")
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<int>("PersonId")
+                        .HasColumnType("int");
+
+                    b.Property<float?>("QualityScore")
+                        .HasColumnType("real");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PersonId");
+
+                    b.ToTable("FaceEmbeddings", (string)null);
                 });
 
             modelBuilder.Entity("FaceRecApp.Core.Entities.Person", b =>
@@ -327,21 +328,28 @@ namespace FaceRecApp.Core.Migrations
                     b.ToTable("Visits", (string)null);
                 });
 
-            modelBuilder.Entity("FaceRecApp.Core.Entities.FaceEmbedding", b =>
+            modelBuilder.Entity("FaceRecApp.Core.Entities.Biometric", b =>
                 {
+                    b.HasOne("FaceRecApp.Core.Entities.FaceEmbedding", "FaceEmbedding")
+                        .WithMany()
+                        .HasForeignKey("FaceEmbeddingId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("FaceRecApp.Core.Entities.Person", "Person")
-                        .WithMany("FaceEmbeddings")
+                        .WithMany("Biometrics")
                         .HasForeignKey("PersonId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("FaceEmbedding");
+
                     b.Navigation("Person");
                 });
 
-            modelBuilder.Entity("FaceRecApp.Core.Entities.FingerprintTemplate", b =>
+            modelBuilder.Entity("FaceRecApp.Core.Entities.FaceEmbedding", b =>
                 {
                     b.HasOne("FaceRecApp.Core.Entities.Person", "Person")
-                        .WithMany("FingerprintTemplates")
+                        .WithMany("FaceEmbeddings")
                         .HasForeignKey("PersonId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -372,9 +380,9 @@ namespace FaceRecApp.Core.Migrations
 
             modelBuilder.Entity("FaceRecApp.Core.Entities.Person", b =>
                 {
-                    b.Navigation("FaceEmbeddings");
+                    b.Navigation("Biometrics");
 
-                    b.Navigation("FingerprintTemplates");
+                    b.Navigation("FaceEmbeddings");
 
                     b.Navigation("Visits");
                 });
