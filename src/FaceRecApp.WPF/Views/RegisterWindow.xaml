@@ -6,7 +6,7 @@
         Height="500" Width="680"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
-        Background="{StaticResource BgPrimary}">
+        Background="{DynamicResource BgPrimary}">
 
     <Grid Margin="24">
         <Grid.RowDefinitions>
@@ -21,19 +21,19 @@
 
         <!-- Title -->
         <TextBlock Grid.Row="0" Text="Register New Person"
-                   Style="{StaticResource PageTitle}"/>
+                   Style="{DynamicResource PageTitle}"/>
 
         <!-- Camera Selector -->
         <StackPanel Grid.Row="2" Orientation="Horizontal">
-            <TextBlock Text="Camera:" Foreground="{StaticResource TextSecondary}"
+            <TextBlock Text="Camera:" Foreground="{DynamicResource TextSecondary}"
                        FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0"/>
             <ComboBox x:Name="CameraSelector"
                       Width="200" Margin="0,0,4,0"
-                      Style="{StaticResource DarkComboBox}"/>
+                      Style="{DynamicResource DarkComboBox}"/>
             <Button x:Name="RefreshCamerasButton"
                     Content="&#x21BB;"
                     Click="OnRefreshCamerasClick"
-                    Style="{StaticResource BtnBase}"
+                    Style="{DynamicResource BtnBase}"
                     FontSize="14" Width="32"
                     ToolTip="Refresh camera list"/>
         </StackPanel>
@@ -47,33 +47,33 @@
             </Grid.ColumnDefinitions>
 
             <!-- Camera Preview -->
-            <Border Grid.Column="0" Style="{StaticResource Card}"
+            <Border Grid.Column="0" Style="{DynamicResource Card}"
                     Padding="0" ClipToBounds="True">
                 <Grid>
                     <Image x:Name="PreviewImage" Stretch="Uniform"
                            RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                     <TextBlock x:Name="PreviewPlaceholder"
                                Text="Camera preview"
-                               Foreground="{StaticResource TextMuted}" FontSize="13"
+                               Foreground="{DynamicResource TextMuted}" FontSize="13"
                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Grid>
             </Border>
 
             <!-- Form -->
             <StackPanel Grid.Column="2">
-                <TextBlock Text="Name" Style="{StaticResource FieldLabel}"/>
-                <TextBox x:Name="NameInput" Style="{StaticResource InputBox}"
+                <TextBlock Text="Name" Style="{DynamicResource FieldLabel}"/>
+                <TextBox x:Name="NameInput" Style="{DynamicResource InputBox}"
                          Margin="0,0,0,16"/>
 
-                <TextBlock Text="Notes (optional)" Style="{StaticResource FieldLabel}"/>
-                <TextBox x:Name="NotesInput" Style="{StaticResource InputBox}"
+                <TextBlock Text="Notes (optional)" Style="{DynamicResource FieldLabel}"/>
+                <TextBox x:Name="NotesInput" Style="{DynamicResource InputBox}"
                          TextWrapping="Wrap" AcceptsReturn="True"
                          Height="60" VerticalContentAlignment="Top"
                          Margin="0,0,0,20"/>
 
-                <TextBlock Text="INSTRUCTIONS" Style="{StaticResource SectionHeader}"
+                <TextBlock Text="INSTRUCTIONS" Style="{DynamicResource SectionHeader}"
                            Margin="0,0,0,8"/>
-                <TextBlock TextWrapping="Wrap" Style="{StaticResource CaptionText}"
+                <TextBlock TextWrapping="Wrap" Style="{DynamicResource CaptionText}"
                            LineHeight="20">
                     1. Enter the person's name
                     <LineBreak/>
@@ -82,13 +82,13 @@
                     3. Click Capture &amp; Register
                 </TextBlock>
 
-                <Border Background="{StaticResource BgSurfaceDim}"
-                        BorderBrush="{StaticResource BorderDefault}"
+                <Border Background="{DynamicResource BgSurfaceDim}"
+                        BorderBrush="{DynamicResource BorderDefault}"
                         BorderThickness="1" CornerRadius="5"
                         Padding="12,10" Margin="0,20,0,0">
                     <TextBlock x:Name="StatusLabel"
                                Text="Ready to register"
-                               Style="{StaticResource CaptionText}"
+                               Style="{DynamicResource CaptionText}"
                                TextWrapping="Wrap"/>
                 </Border>
             </StackPanel>
@@ -99,11 +99,11 @@
             <Button x:Name="CaptureButton"
                     Content="Capture &amp; Register"
                     Click="OnCaptureClick"
-                    Style="{StaticResource BtnPrimary}"
+                    Style="{DynamicResource BtnPrimary}"
                     Margin="0,0,8,0"/>
             <Button Content="Cancel"
                     Click="OnCancelClick"
-                    Style="{StaticResource BtnBase}"/>
+                    Style="{DynamicResource BtnBase}"/>
         </StackPanel>
     </Grid>
 </Window>

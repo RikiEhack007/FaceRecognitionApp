@@ -80,6 +80,13 @@ public partial class App : Application
                 sp.GetRequiredService<FaceRepository>(),
                 sp.GetRequiredService<AntiSpoofService>()));
 
+        // ── UI Services ──
+        services.AddSingleton<IDialogService, DialogService>();
+        services.AddSingleton<ThemeService>();
+
+        // ── ViewModels ──
+        services.AddTransient<ViewModels.MainViewModel>();
+
         Services = services.BuildServiceProvider();
 
         // ── Configure CameraService from appsettings ──
@@ -96,6 +103,10 @@ public partial class App : Application
 
         // ── Ensure database exists ──
         InitializeDatabase();
+
+        // ── Show main window ──
+        var mainWindow = new Views.MainWindow();
+        mainWindow.Show();
     }
 
     private void InitializeDatabase()

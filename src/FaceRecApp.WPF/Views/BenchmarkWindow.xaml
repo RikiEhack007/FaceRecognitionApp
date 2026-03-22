@@ -4,7 +4,7 @@
         Title="Performance Benchmarks"
         Height="560" Width="660"
         WindowStartupLocation="CenterOwner"
-        Background="{StaticResource BgPrimary}">
+        Background="{DynamicResource BgPrimary}">
 
     <Grid Margin="24">
         <Grid.RowDefinitions>
@@ -19,38 +19,38 @@
 
         <!-- Title -->
         <TextBlock Grid.Row="0" Text="Performance Benchmarks"
-                   Style="{StaticResource PageTitle}"/>
+                   Style="{DynamicResource PageTitle}"/>
 
         <!-- Controls -->
         <WrapPanel Grid.Row="2">
             <Button x:Name="RunBenchmarkBtn"
                     Content="Run Benchmarks"
                     Click="OnRunBenchmark"
-                    Style="{StaticResource BtnPrimary}"
+                    Style="{DynamicResource BtnPrimary}"
                     Margin="0,0,8,6"/>
             <Button x:Name="PopulateBtn"
                     Content="Add 100 Synthetic"
                     Click="OnPopulate100"
-                    Style="{StaticResource BtnBase}"
+                    Style="{DynamicResource BtnBase}"
                     Margin="0,0,8,6"/>
             <Button x:Name="Populate1kBtn"
                     Content="Add 1,000 Synthetic"
                     Click="OnPopulate1000"
-                    Style="{StaticResource BtnBase}"
+                    Style="{DynamicResource BtnBase}"
                     Margin="0,0,8,6"/>
             <Button x:Name="CleanupBtn"
                     Content="Cleanup Synthetic"
                     Click="OnCleanup"
-                    Style="{StaticResource BtnDanger}"
+                    Style="{DynamicResource BtnDanger}"
                     Margin="0,0,0,6"/>
         </WrapPanel>
 
         <!-- Results -->
-        <Border Grid.Row="4" Style="{StaticResource Card}">
+        <Border Grid.Row="4" Style="{DynamicResource Card}">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <TextBlock x:Name="ResultsText"
                            Text="Click Run Benchmarks to start.&#10;&#10;For meaningful results, register some faces first or use the&#10;Add Synthetic buttons to populate test data."
-                           Style="{StaticResource MonoText}"
+                           Style="{DynamicResource MonoText}"
                            TextWrapping="Wrap"
                            LineHeight="18"/>
             </ScrollViewer>
@@ -58,7 +58,7 @@
 
         <!-- Close -->
         <Button Grid.Row="6" Content="Close" Click="OnClose"
-                Style="{StaticResource BtnBase}"
+                Style="{DynamicResource BtnBase}"
                 HorizontalAlignment="Right"/>
     </Grid>
 </Window>

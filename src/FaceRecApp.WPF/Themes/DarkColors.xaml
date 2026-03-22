@@ -1,0 +1,56 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--  Backgrounds  -->
+    <SolidColorBrush x:Key="BgPrimary" Color="#0F172A" />
+    <SolidColorBrush x:Key="BgSurface" Color="#1E293B" />
+    <SolidColorBrush x:Key="BgSurfaceDim" Color="#0F172A" />
+    <SolidColorBrush x:Key="BgDark" Color="#020617" />
+    <SolidColorBrush x:Key="BgCameraOff" Color="#1E293B" />
+
+    <!--  Borders  -->
+    <SolidColorBrush x:Key="BorderDefault" Color="#334155" />
+    <SolidColorBrush x:Key="BorderLight" Color="#1E293B" />
+    <SolidColorBrush x:Key="BorderFocus" Color="#3B82F6" />
+
+    <!--  Text  -->
+    <SolidColorBrush x:Key="TextPrimary" Color="#F1F5F9" />
+    <SolidColorBrush x:Key="TextSecondary" Color="#94A3B8" />
+    <SolidColorBrush x:Key="TextMuted" Color="#64748B" />
+    <SolidColorBrush x:Key="TextOnDark" Color="#F1F5F9" />
+    <SolidColorBrush x:Key="TextOnAccent" Color="#FFFFFF" />
+
+    <!--  Accent  -->
+    <SolidColorBrush x:Key="AccentPrimary" Color="#3B82F6" />
+    <SolidColorBrush x:Key="AccentHover" Color="#2563EB" />
+    <SolidColorBrush x:Key="AccentDanger" Color="#F87171" />
+    <SolidColorBrush x:Key="AccentDangerHover" Color="#EF4444" />
+    <SolidColorBrush x:Key="AccentAmber" Color="#FBBF24" />
+
+    <!--  Status surfaces  -->
+    <SolidColorBrush x:Key="BgWarning" Color="#1C1A0E" />
+    <SolidColorBrush x:Key="TextWarning" Color="#FBBF24" />
+    <SolidColorBrush x:Key="BgSuccess" Color="#0D1F12" />
+    <SolidColorBrush x:Key="TextSuccess" Color="#4ADE80" />
+    <SolidColorBrush x:Key="BgError" Color="#1F0D0D" />
+    <SolidColorBrush x:Key="TextError" Color="#F87171" />
+    <SolidColorBrush x:Key="BgInfoLight" Color="#0D1520" />
+    <SolidColorBrush x:Key="TextInfo" Color="#7AABDF" />
+
+    <!--  Step Indicator  -->
+    <SolidColorBrush x:Key="StepActive" Color="#3B82F6" />
+    <SolidColorBrush x:Key="StepComplete" Color="#4ADE80" />
+    <SolidColorBrush x:Key="StepInactive" Color="#475569" />
+
+    <!--  Button surfaces  -->
+    <SolidColorBrush x:Key="BtnDefault" Color="#334155" />
+    <SolidColorBrush x:Key="BtnDefaultHover" Color="#475569" />
+    <SolidColorBrush x:Key="BtnDefaultPress" Color="#1E293B" />
+
+    <!--  ComboBox dark  -->
+    <SolidColorBrush x:Key="ComboDarkBg" Color="#1E293B" />
+    <SolidColorBrush x:Key="ComboDarkBgHover" Color="#334155" />
+    <SolidColorBrush x:Key="ComboDarkBorder" Color="#475569" />
+    <SolidColorBrush x:Key="ComboDarkText" Color="#E2E8F0" />
+    <SolidColorBrush x:Key="ComboDarkItemHover" Color="#475569" />
+
+</ResourceDictionary>

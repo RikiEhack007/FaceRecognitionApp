@@ -4,16 +4,16 @@
         Title="Patient Database"
         Height="600" Width="920"
         WindowStartupLocation="CenterOwner"
-        Background="{StaticResource BgPrimary}">
+        Background="{DynamicResource BgPrimary}">
 
     <Window.Resources>
         <Style x:Key="DgColumnHeader" TargetType="DataGridColumnHeader">
-            <Setter Property="Background" Value="{StaticResource BgSurfaceDim}"/>
-            <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+            <Setter Property="Background" Value="{DynamicResource BgSurfaceDim}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
             <Setter Property="Padding" Value="10,8"/>
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="BorderBrush" Value="{StaticResource BorderLight}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}"/>
             <Setter Property="BorderThickness" Value="0,0,0,1"/>
         </Style>
     </Window.Resources>
@@ -33,32 +33,32 @@
 
         <!-- Title -->
         <TextBlock Grid.Row="0" Text="Patient Database"
-                   Style="{StaticResource PageTitle}"/>
+                   Style="{DynamicResource PageTitle}"/>
 
         <!-- Search -->
-        <Border Grid.Row="2" Style="{StaticResource Card}" Padding="10,8">
+        <Border Grid.Row="2" Style="{DynamicResource Card}" Padding="10,8">
             <StackPanel Orientation="Horizontal">
-                <TextBlock Text="Search:" Foreground="{StaticResource TextSecondary}"
+                <TextBlock Text="Search:" Foreground="{DynamicResource TextSecondary}"
                            FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <TextBox x:Name="SearchInput" Width="250" Style="{StaticResource InputBox}"
+                <TextBox x:Name="SearchInput" Width="250" Style="{DynamicResource InputBox}"
                          Margin="0,0,8,0" KeyDown="OnSearchKeyDown"/>
                 <Button Content="Search" Click="OnSearchClick"
-                        Style="{StaticResource BtnPrimary}" Padding="12,6"/>
+                        Style="{DynamicResource BtnPrimary}" Padding="12,6"/>
                 <Button Content="Show All" Click="OnRefreshClick"
-                        Style="{StaticResource BtnBase}" Padding="12,6" Margin="4,0,0,0"/>
+                        Style="{DynamicResource BtnBase}" Padding="12,6" Margin="4,0,0,0"/>
             </StackPanel>
         </Border>
 
         <!-- Stats -->
-        <Border Grid.Row="4" Style="{StaticResource Card}" Padding="14,10">
+        <Border Grid.Row="4" Style="{DynamicResource Card}" Padding="14,10">
             <WrapPanel>
-                <TextBlock x:Name="StatPersons" Style="{StaticResource CaptionText}"
+                <TextBlock x:Name="StatPersons" Style="{DynamicResource CaptionText}"
                            Margin="0,0,24,0"/>
-                <TextBlock x:Name="StatSamples" Style="{StaticResource CaptionText}"
+                <TextBlock x:Name="StatSamples" Style="{DynamicResource CaptionText}"
                            Margin="0,0,24,0"/>
-                <TextBlock x:Name="StatRecognitions" Style="{StaticResource CaptionText}"
+                <TextBlock x:Name="StatRecognitions" Style="{DynamicResource CaptionText}"
                            Margin="0,0,24,0"/>
-                <TextBlock x:Name="StatRate" Style="{StaticResource CaptionText}"/>
+                <TextBlock x:Name="StatRate" Style="{DynamicResource CaptionText}"/>
             </WrapPanel>
         </Border>
 
@@ -67,16 +67,16 @@
                   AutoGenerateColumns="False"
                   IsReadOnly="True"
                   SelectionMode="Single"
-                  Background="{StaticResource BgSurface}"
-                  Foreground="{StaticResource TextPrimary}"
-                  BorderBrush="{StaticResource BorderDefault}"
+                  Background="{DynamicResource BgSurface}"
+                  Foreground="{DynamicResource TextPrimary}"
+                  BorderBrush="{DynamicResource BorderDefault}"
                   BorderThickness="1"
-                  RowBackground="{StaticResource BgSurface}"
-                  AlternatingRowBackground="{StaticResource BgSurfaceDim}"
+                  RowBackground="{DynamicResource BgSurface}"
+                  AlternatingRowBackground="{DynamicResource BgSurfaceDim}"
                   GridLinesVisibility="Horizontal"
-                  HorizontalGridLinesBrush="{StaticResource BorderLight}"
+                  HorizontalGridLinesBrush="{DynamicResource BorderLight}"
                   HeadersVisibility="Column"
-                  ColumnHeaderStyle="{StaticResource DgColumnHeader}"
+                  ColumnHeaderStyle="{DynamicResource DgColumnHeader}"
                   FontSize="12"
                   CanUserResizeRows="False">
             <DataGrid.Columns>
@@ -90,12 +90,12 @@
             </DataGrid.Columns>
             <DataGrid.CellStyle>
                 <Style TargetType="DataGridCell">
-                    <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
                     <Setter Property="BorderThickness" Value="0"/>
                     <Setter Property="Padding" Value="6,4"/>
                     <Style.Triggers>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter Property="Background" Value="{StaticResource BgSurfaceDim}"/>
+                            <Setter Property="Background" Value="{DynamicResource BgSurfaceDim}"/>
                         </Trigger>
                     </Style.Triggers>
                 </Style>
@@ -105,7 +105,7 @@
                     <Setter Property="Height" Value="34"/>
                     <Style.Triggers>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter Property="Background" Value="{StaticResource BgSurfaceDim}"/>
+                            <Setter Property="Background" Value="{DynamicResource BgSurfaceDim}"/>
                         </Trigger>
                     </Style.Triggers>
                 </Style>
@@ -116,23 +116,23 @@
         <StackPanel Grid.Row="8" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="Edit Patient"
                     Click="OnEditClick"
-                    Style="{StaticResource BtnPrimary}"
+                    Style="{DynamicResource BtnPrimary}"
                     Margin="0,0,8,0"/>
             <Button Content="View Visits"
                     Click="OnViewVisitsClick"
-                    Style="{StaticResource BtnBase}"
+                    Style="{DynamicResource BtnBase}"
                     Margin="0,0,8,0"/>
             <Button Content="Refresh"
                     Click="OnRefreshClick"
-                    Style="{StaticResource BtnBase}"
+                    Style="{DynamicResource BtnBase}"
                     Margin="0,0,8,0"/>
             <Button Content="Delete Selected"
                     Click="OnDeleteClick"
-                    Style="{StaticResource BtnDanger}"
+                    Style="{DynamicResource BtnDanger}"
                     Margin="0,0,8,0"/>
             <Button Content="Close"
                     Click="OnCloseClick"
-                    Style="{StaticResource BtnBase}"/>
+                    Style="{DynamicResource BtnBase}"/>
         </StackPanel>
     </Grid>
 </Window>
