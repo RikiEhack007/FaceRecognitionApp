@@ -85,9 +85,8 @@
                 <DataGridTextColumn Header="Sex" Binding="{Binding Sex}" Width="45"/>
                 <DataGridTextColumn Header="Site" Binding="{Binding Site}" Width="50"/>
                 <DataGridTextColumn Header="Samples" Binding="{Binding FaceSampleCount}" Width="65"/>
-                <DataGridTextColumn Header="Recognitions" Binding="{Binding TotalRecognitions}" Width="90"/>
-                <DataGridTextColumn Header="Last Seen" Binding="{Binding LastSeenAt, StringFormat='{}{0:dd/MM/yy HH:mm}'}" Width="100"/>
-                <DataGridTextColumn Header="Notes" Binding="{Binding Notes}" Width="120"/>
+                <DataGridTextColumn Header="Created" Binding="{Binding CreatedOn}" Width="120"/>
+                <DataGridTextColumn Header="Notes" Binding="{Binding Note}" Width="120"/>
             </DataGrid.Columns>
             <DataGrid.CellStyle>
                 <Style TargetType="DataGridCell">
@@ -115,13 +114,17 @@
 
         <!-- Buttons -->
         <StackPanel Grid.Row="8" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Edit Patient"
+                    Click="OnEditClick"
+                    Style="{StaticResource BtnPrimary}"
+                    Margin="0,0,8,0"/>
             <Button Content="View Visits"
                     Click="OnViewVisitsClick"
                     Style="{StaticResource BtnBase}"
                     Margin="0,0,8,0"/>
             <Button Content="Refresh"
                     Click="OnRefreshClick"
-                    Style="{StaticResource BtnPrimary}"
+                    Style="{StaticResource BtnBase}"
                     Margin="0,0,8,0"/>
             <Button Content="Delete Selected"
                     Click="OnDeleteClick"

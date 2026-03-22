@@ -17,7 +17,7 @@ public class RecognitionResult
     /// <summary>
     /// Matched person from the database. NULL if not recognized.
     /// </summary>
-    public Person? Person { get; set; }
+    public Patient? Patient { get; set; }
 
     /// <summary>
     /// Was this face matched to someone in the database?
@@ -114,8 +114,8 @@ public class RecognitionResult
                 return "SPOOF DETECTED";
 
             string name;
-            if (IsRecognized && Person != null)
-                name = $"{Person.FullName} ({SimilarityText})";
+            if (IsRecognized && Patient != null)
+                name = $"{Patient.FullName} ({SimilarityText})";
             else
                 name = $"Unknown ({SimilarityText})";
 

@@ -5,8 +5,8 @@ namespace FaceRecApp.Core.Entities;
 
 /// <summary>
 /// Represents a patient visit with service routing.
-/// Created at Step 4 of the workflow: Visit &amp; Routing.
 /// </summary>
+[Table("Visits")]
 public class Visit
 {
     [Key]
@@ -14,34 +14,38 @@ public class Visit
 
     // ─── Foreign Key ───
 
-    public int PersonId { get; set; }
+    [Required]
+    [Column("PID", TypeName = "varchar(10)")]
+    public string PID { get; set; } = string.Empty;
 
-    [ForeignKey(nameof(PersonId))]
-    public Person Person { get; set; } = null!;
+    [ForeignKey(nameof(PID))]
+    public Patient Patient { get; set; } = null!;
 
     // ─── Visit Details ───
 
-    public DateTime VisitDate { get; set; } = DateTime.UtcNow;
+    public DateTime Date { get; set; } = DateTime.UtcNow;
 
     /// <summary>
     /// Chief complaint / reason for visit.
     /// </summary>
-    [MaxLength(500)]
+    [Column("CC", TypeName = "varchar(500)")]
     public string? ChiefComplaint { get; set; }
 
     /// <summary>
     /// Service type: OPD, ANC, Vaccine, Study, Follow Up, etc.
     /// </summary>
     [Required]
-    [MaxLength(50)]
+    [Column(TypeName = "varchar(50)")]
     public string ServiceType { get; set; } = string.Empty;
 
     // ─── Audit ───
 
-    [MaxLength(50)]
+    [Column(TypeName = "varchar(50)")]
     public string? CreatedBy { get; set; }
 
-    [MaxLength(50)]
+    public DateTime? CreatedDate { get; set; }
+
+    [Column(TypeName = "varchar(50)")]
     public string? ModifiedBy { get; set; }
 
     public DateTime? ModifiedDate { get; set; }

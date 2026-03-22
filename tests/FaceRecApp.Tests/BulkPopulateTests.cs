@@ -1,4 +1,5 @@
 using FaceRecApp.Core.Data;
+using FaceRecApp.Core.Entities;
 using FaceRecApp.Core.Services;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -44,9 +45,9 @@ public class BulkPopulateTests
 
         // Check current count
         await using var db = await dbFactory.CreateDbContextAsync();
-        var existingPersons = await db.Persons.CountAsync();
-        var existingEmbeddings = await db.FaceEmbeddings.CountAsync();
-        _output.WriteLine($"Before: {existingPersons:N0} persons, {existingEmbeddings:N0} embeddings");
+        var existingPatients = await db.Patients.CountAsync();
+        var existingEmbeddings = await db.Biometrics.CountAsync(b => b.BiometricType == BiometricRemarks.Types.Face);
+        _output.WriteLine($"Before: {existingPatients:N0} persons, {existingEmbeddings:N0} embeddings");
 
         // Populate 100,000 synthetic persons (1 embedding each = 100K embeddings)
         var total = await benchmark.PopulateSyntheticDataAsync(
@@ -58,9 +59,9 @@ public class BulkPopulateTests
             });
 
         // Verify
-        var finalPersons = await db.Persons.CountAsync();
-        var finalEmbeddings = await db.FaceEmbeddings.CountAsync();
-        _output.WriteLine($"After: {finalPersons:N0} persons, {finalEmbeddings:N0} embeddings");
+        var finalPatients = await db.Patients.CountAsync();
+        var finalEmbeddings = await db.Biometrics.CountAsync(b => b.BiometricType == BiometricRemarks.Types.Face);
+        _output.WriteLine($"After: {finalPatients:N0} persons, {finalEmbeddings:N0} embeddings");
         _output.WriteLine($"Inserted: {total:N0} embeddings");
 
         Assert.True(total > 0);

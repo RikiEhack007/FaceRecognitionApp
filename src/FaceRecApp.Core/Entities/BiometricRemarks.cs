@@ -68,4 +68,22 @@ public static class BiometricRemarks
         public const string FingerR4 = "FingerR4";
         public const string FingerR5 = "FingerR5";
     }
+
+    /// <summary>
+    /// Ordered finger types with display names for UI dropdowns.
+    /// Default finger (Right Index) is first.
+    /// </summary>
+    public static readonly (string Code, string DisplayName)[] FingerTypes =
+    [
+        (Types.FingerR2, "Right Index (R2)"),
+        (Types.FingerR1, "Right Thumb (R1)"),
+        (Types.FingerR3, "Right Middle (R3)"),
+        (Types.FingerR4, "Right Ring (R4)"),
+        (Types.FingerR5, "Right Little (R5)"),
+        (Types.FingerL2, "Left Index (L2)"),
+        (Types.FingerL1, "Left Thumb (L1)"),
+        (Types.FingerL3, "Left Middle (L3)"),
+        (Types.FingerL4, "Left Ring (L4)"),
+        (Types.FingerL5, "Left Little (L5)"),
+    ];
 }

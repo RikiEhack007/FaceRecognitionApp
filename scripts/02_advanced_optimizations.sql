@@ -1,5 +1,5 @@
 -- ============================================================
--- Face Recognition PoC — Advanced SQL Server 2025 Optimizations
+-- Face Recognition App — Advanced SQL Server 2025 Optimizations
 -- ============================================================
 -- Run AFTER you have data in the database and want to optimize.
 -- ============================================================
@@ -11,7 +11,7 @@ GO
 -- PART 1: DiskANN Vector Index
 -- ============================================================
 -- Creates an approximate nearest neighbor index on the VECTOR(512) column.
--- 
+--
 -- When to use:
 --   - When you have 5,000+ face embeddings
 --   - When exact search becomes too slow (>50ms)
@@ -23,15 +23,14 @@ GO
 --   - Dramatically faster: O(log n) instead of O(n)
 --
 -- Performance improvement:
---   - 10,000 embeddings: exact ~10ms → DiskANN ~2ms
---   - 100,000 embeddings: exact ~100ms → DiskANN ~3ms
---   - 500,000 embeddings: exact ~500ms → DiskANN ~5ms
+--   - 10,000 embeddings: exact ~10ms -> DiskANN ~2ms
+--   - 100,000 embeddings: exact ~100ms -> DiskANN ~3ms
+--   - 500,000 embeddings: exact ~500ms -> DiskANN ~5ms
 --
 -- IMPORTANT LIMITATIONS (SQL Server 2025 Preview):
 --   - The table becomes INSERT-ONLY while the vector index exists
 --   - To UPDATE or DELETE rows, you must DROP the index first, then recreate
 --   - This is a preview limitation that may be removed in future updates
---   - For the PoC with <1,000 faces, you likely don't need this
 -- ============================================================
 
 -- Step 1: Enable preview features (required for vector indexes)
@@ -40,31 +39,31 @@ GO
 
 -- Step 2: Check if index already exists
 IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes 
-    WHERE name = 'IX_FaceEmbeddings_Vector' 
-    AND object_id = OBJECT_ID('FaceEmbeddings')
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_Biometrics_Vector'
+    AND object_id = OBJECT_ID('Biometrics')
 )
 BEGIN
     -- Create the DiskANN vector index
-    CREATE VECTOR INDEX IX_FaceEmbeddings_Vector
-    ON FaceEmbeddings(Embedding)
+    CREATE VECTOR INDEX IX_Biometrics_Vector
+    ON Biometrics(Embedding)
     WITH (METRIC = 'cosine', TYPE = 'diskann');
-    
-    PRINT '✅ DiskANN vector index created on FaceEmbeddings.Embedding';
+
+    PRINT 'DiskANN vector index created on Biometrics.Embedding';
 END
 ELSE
 BEGIN
-    PRINT 'ℹ️ DiskANN vector index already exists.';
+    PRINT 'DiskANN vector index already exists.';
 END
 GO
 
 -- Step 3: Verify the index exists
-SELECT 
+SELECT
     i.name AS IndexName,
     i.type_desc AS IndexType,
     OBJECT_NAME(i.object_id) AS TableName
 FROM sys.indexes i
-WHERE i.name = 'IX_FaceEmbeddings_Vector';
+WHERE i.name = 'IX_Biometrics_Vector';
 GO
 
 -- ============================================================
@@ -74,12 +73,6 @@ GO
 -- ──────────────────────────────────────────────
 -- SP: Find closest face match (single best match)
 -- ──────────────────────────────────────────────
--- This is the same query EF Core generates, but as a stored procedure.
--- Benefits:
---   - Pre-compiled execution plan (slightly faster)
---   - Can be called from any client (not just EF Core)
---   - Easier to tune and monitor
--- ──────────────────────────────────────────────
 CREATE OR ALTER PROCEDURE sp_FindClosestFace
     @QueryEmbedding VECTOR(512),
     @DistanceThreshold FLOAT = 0.55
@@ -88,28 +81,28 @@ BEGIN
     SET NOCOUNT ON;
 
     SELECT TOP(1)
-        p.Id AS PersonId,
-        p.Name,
-        p.ExternalId,
-        p.Notes,
-        e.Id AS EmbeddingId,
-        VECTOR_DISTANCE('cosine', e.Embedding, @QueryEmbedding) AS Distance,
-        CASE 
-            WHEN VECTOR_DISTANCE('cosine', e.Embedding, @QueryEmbedding) <= @DistanceThreshold 
-            THEN 1 ELSE 0 
+        p.IDCard AS PID,
+        p.FullName,
+        p.Site,
+        b.Id AS BiometricId,
+        VECTOR_DISTANCE('cosine', b.Embedding, @QueryEmbedding) AS Distance,
+        CASE
+            WHEN VECTOR_DISTANCE('cosine', b.Embedding, @QueryEmbedding) <= @DistanceThreshold
+            THEN 1 ELSE 0
         END AS IsMatch,
-        CASE 
-            WHEN VECTOR_DISTANCE('cosine', e.Embedding, @QueryEmbedding) <= 0.35 
-            THEN 1 ELSE 0 
+        CASE
+            WHEN VECTOR_DISTANCE('cosine', b.Embedding, @QueryEmbedding) <= 0.35
+            THEN 1 ELSE 0
         END AS IsHighConfidence
-    FROM FaceEmbeddings e
-    INNER JOIN Persons p ON e.PersonId = p.Id
-    WHERE p.IsActive = 1
-    ORDER BY VECTOR_DISTANCE('cosine', e.Embedding, @QueryEmbedding) ASC;
+    FROM Biometrics b
+    INNER JOIN Patients p ON b.PID = p.IDCard
+    WHERE b.BiometricType = 'Face'
+      AND b.Embedding IS NOT NULL
+    ORDER BY VECTOR_DISTANCE('cosine', b.Embedding, @QueryEmbedding) ASC;
 END;
 GO
 
-PRINT '✅ sp_FindClosestFace created';
+PRINT 'sp_FindClosestFace created';
 GO
 
 -- ──────────────────────────────────────────────
@@ -124,33 +117,30 @@ BEGIN
     SET NOCOUNT ON;
 
     SELECT TOP(@TopN)
-        p.Id AS PersonId,
-        p.Name,
-        p.ExternalId,
-        e.Id AS EmbeddingId,
-        e.CaptureAngle,
-        VECTOR_DISTANCE('cosine', e.Embedding, @QueryEmbedding) AS Distance,
-        CAST((1.0 - VECTOR_DISTANCE('cosine', e.Embedding, @QueryEmbedding)) * 100 AS DECIMAL(5,1)) AS [Similarity%],
-        CASE 
-            WHEN VECTOR_DISTANCE('cosine', e.Embedding, @QueryEmbedding) <= @DistanceThreshold 
-            THEN 'MATCH' ELSE 'NO MATCH' 
+        p.IDCard AS PID,
+        p.FullName,
+        p.Site,
+        b.Id AS BiometricId,
+        b.CaptureAngle,
+        VECTOR_DISTANCE('cosine', b.Embedding, @QueryEmbedding) AS Distance,
+        CAST((1.0 - VECTOR_DISTANCE('cosine', b.Embedding, @QueryEmbedding)) * 100 AS DECIMAL(5,1)) AS [Similarity%],
+        CASE
+            WHEN VECTOR_DISTANCE('cosine', b.Embedding, @QueryEmbedding) <= @DistanceThreshold
+            THEN 'MATCH' ELSE 'NO MATCH'
         END AS Status
-    FROM FaceEmbeddings e
-    INNER JOIN Persons p ON e.PersonId = p.Id
-    WHERE p.IsActive = 1
-    ORDER BY VECTOR_DISTANCE('cosine', e.Embedding, @QueryEmbedding) ASC;
+    FROM Biometrics b
+    INNER JOIN Patients p ON b.PID = p.IDCard
+    WHERE b.BiometricType = 'Face'
+      AND b.Embedding IS NOT NULL
+    ORDER BY VECTOR_DISTANCE('cosine', b.Embedding, @QueryEmbedding) ASC;
 END;
 GO
 
-PRINT '✅ sp_FindTopFaces created';
+PRINT 'sp_FindTopFaces created';
 GO
 
 -- ──────────────────────────────────────────────
 -- SP: Approximate search using DiskANN (VECTOR_SEARCH)
--- ──────────────────────────────────────────────
--- Uses the DiskANN index for approximate nearest neighbor search.
--- Much faster than exact search for large datasets.
--- Only works when the IX_FaceEmbeddings_Vector index exists.
 -- ──────────────────────────────────────────────
 CREATE OR ALTER PROCEDURE sp_FindClosestFace_Approximate
     @QueryEmbedding VECTOR(512),
@@ -160,30 +150,28 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- VECTOR_SEARCH uses the DiskANN index for approximate matching
-    -- It's significantly faster but may miss some matches (99%+ recall)
-    SELECT 
-        p.Id AS PersonId,
-        p.Name,
-        p.ExternalId,
+    SELECT
+        p.IDCard AS PID,
+        p.FullName,
+        p.Site,
         vs.distance AS Distance,
         CAST((1.0 - vs.distance) * 100 AS DECIMAL(5,1)) AS [Similarity%],
-        CASE 
-            WHEN vs.distance <= @DistanceThreshold 
-            THEN 'MATCH' ELSE 'NO MATCH' 
+        CASE
+            WHEN vs.distance <= @DistanceThreshold
+            THEN 'MATCH' ELSE 'NO MATCH'
         END AS Status
     FROM VECTOR_SEARCH(
-        FaceEmbeddings, Embedding, @QueryEmbedding,
+        Biometrics, Embedding, @QueryEmbedding,
         'metric=cosine', @TopN
     ) vs
-    INNER JOIN FaceEmbeddings e ON e.Id = vs.$rowid
-    INNER JOIN Persons p ON e.PersonId = p.Id
-    WHERE p.IsActive = 1
+    INNER JOIN Biometrics b ON b.Id = vs.$rowid
+    INNER JOIN Patients p ON b.PID = p.IDCard
+    WHERE b.BiometricType = 'Face'
     ORDER BY vs.distance ASC;
 END;
 GO
 
-PRINT '✅ sp_FindClosestFace_Approximate created';
+PRINT 'sp_FindClosestFace_Approximate created';
 GO
 
 -- ============================================================
@@ -201,43 +189,41 @@ SET @testVector = CAST(
 DECLARE @startTime DATETIME2 = SYSDATETIME();
 
 SELECT TOP(1)
-    p.Name,
-    VECTOR_DISTANCE('cosine', e.Embedding, @testVector) AS Distance
-FROM FaceEmbeddings e
-INNER JOIN Persons p ON e.PersonId = p.Id
-WHERE p.IsActive = 1
-ORDER BY VECTOR_DISTANCE('cosine', e.Embedding, @testVector) ASC;
+    p.FullName,
+    VECTOR_DISTANCE('cosine', b.Embedding, @testVector) AS Distance
+FROM Biometrics b
+INNER JOIN Patients p ON b.PID = p.IDCard
+WHERE b.BiometricType = 'Face'
+  AND b.Embedding IS NOT NULL
+ORDER BY VECTOR_DISTANCE('cosine', b.Embedding, @testVector) ASC;
 
 DECLARE @endTime DATETIME2 = SYSDATETIME();
-SELECT 
+SELECT
     DATEDIFF(MICROSECOND, @startTime, @endTime) / 1000.0 AS [Exact Search (ms)],
-    (SELECT COUNT(*) FROM FaceEmbeddings) AS [Total Embeddings];
+    (SELECT COUNT(*) FROM Biometrics WHERE BiometricType = 'Face') AS [Total Face Embeddings];
 GO
 
 -- ============================================================
 -- PART 4: Maintenance Views
 -- ============================================================
 
--- View: Person summary with sample counts
-CREATE OR ALTER VIEW vw_PersonSummary AS
-SELECT 
-    p.Id,
-    p.Name,
-    p.ExternalId,
-    p.Notes,
-    p.IsActive,
-    COUNT(e.Id) AS FaceSampleCount,
-    p.TotalRecognitions,
-    p.CreatedAt,
-    p.LastSeenAt,
-    DATEDIFF(DAY, p.LastSeenAt, GETUTCDATE()) AS DaysSinceLastSeen
-FROM Persons p
-LEFT JOIN FaceEmbeddings e ON p.Id = e.PersonId
-GROUP BY p.Id, p.Name, p.ExternalId, p.Notes, p.IsActive, 
-         p.TotalRecognitions, p.CreatedAt, p.LastSeenAt;
+-- View: Patient summary with sample counts
+CREATE OR ALTER VIEW vw_PatientSummary AS
+SELECT
+    p.IDCard AS PID,
+    p.FullName,
+    p.Site,
+    p.Sex,
+    p.Note,
+    COUNT(CASE WHEN b.BiometricType = 'Face' THEN 1 END) AS FaceSampleCount,
+    COUNT(CASE WHEN b.BiometricType LIKE 'Finger%' THEN 1 END) AS FingerprintCount,
+    p.CreatedOn
+FROM Patients p
+LEFT JOIN Biometrics b ON p.IDCard = b.PID
+GROUP BY p.IDCard, p.FullName, p.Site, p.Sex, p.Note, p.CreatedOn;
 GO
 
-PRINT '✅ vw_PersonSummary view created';
+PRINT 'vw_PatientSummary view created';
 GO
 
 -- View: Recognition analytics
@@ -251,19 +237,19 @@ SELECT
     AVG(Distance) AS AvgDistance,
     MIN(Distance) AS BestDistance,
     CAST(
-        SUM(CASE WHEN WasRecognized = 1 THEN 1.0 ELSE 0 END) / 
-        NULLIF(COUNT(*), 0) * 100 
+        SUM(CASE WHEN WasRecognized = 1 THEN 1.0 ELSE 0 END) /
+        NULLIF(COUNT(*), 0) * 100
     AS DECIMAL(5,1)) AS RecognitionRate
 FROM RecognitionLogs
 GROUP BY CAST(Timestamp AS DATE);
 GO
 
-PRINT '✅ vw_RecognitionStats view created';
+PRINT 'vw_RecognitionStats view created';
 GO
 
 -- Quick analytics query
 SELECT * FROM vw_RecognitionStats ORDER BY RecognitionDate DESC;
 GO
 
-PRINT '✅ All advanced optimizations applied successfully!';
+PRINT 'All advanced optimizations applied successfully!';
 GO

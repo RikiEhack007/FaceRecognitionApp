@@ -17,17 +17,6 @@ namespace FaceRecApp.WPF.ViewModels;
 
 /// <summary>
 /// Main view model — drives the entire application.
-/// 
-/// Responsibilities:
-///   - Start/stop camera
-///   - Feed frames to RecognitionPipeline
-///   - Update UI with recognition results
-///   - Manage activity log
-///   - Open registration / database windows
-/// 
-/// Uses CommunityToolkit.Mvvm for:
-///   [ObservableProperty] → auto-generates property + INotifyPropertyChanged
-///   [RelayCommand]       → auto-generates ICommand for button bindings
 /// </summary>
 public partial class MainViewModel : ObservableObject, IDisposable
 {
@@ -35,109 +24,69 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly RecognitionPipeline _pipeline;
     private readonly Dispatcher _dispatcher;
     private bool _disposed;
+    private CancellationTokenSource? _preWarmCts;
+    private volatile bool _isSwitching;
 
     // ─── Display pipeline (producer-consumer) ───
-    // Camera thread writes latest frame to buffer; UI thread reads at render pace.
-    // This decouples camera capture (30fps) from UI rendering (~60fps WPF).
     private WriteableBitmap? _writeableBitmap;
     private Mat? _latestDisplayFrame;
     private readonly object _displayLock = new();
 
     // ──────────────────────────────────────────────
-    // Observable Properties (auto-generate PropertyChanged)
+    // Observable Properties
     // ──────────────────────────────────────────────
 
-    /// <summary>
-    /// Current camera frame (with overlays drawn) for display.
-    /// </summary>
     [ObservableProperty]
     private BitmapSource? _cameraFrame;
 
-    /// <summary>
-    /// Is the camera currently running?
-    /// </summary>
     [ObservableProperty]
     private bool _isCameraRunning;
 
-    /// <summary>
-    /// Status bar text.
-    /// </summary>
     [ObservableProperty]
     private string _statusText = "Ready. Click 'Start Camera' to begin.";
 
-    /// <summary>
-    /// Current FPS display.
-    /// </summary>
     [ObservableProperty]
     private string _fpsText = "FPS: --";
 
-    /// <summary>
-    /// Pipeline timing display.
-    /// </summary>
     [ObservableProperty]
     private string _timingText = "";
 
-    /// <summary>
-    /// Liveness status display.
-    /// </summary>
     [ObservableProperty]
     private string _livenessText = "";
 
-    /// <summary>
-    /// Number of registered persons.
-    /// </summary>
     [ObservableProperty]
     private string _databaseText = "Database: 0 persons";
 
-    /// <summary>
-    /// Current recognition results for display in the side panel.
-    /// </summary>
     [ObservableProperty]
     private ObservableCollection<RecognitionResultViewModel> _currentResults = new();
 
-    /// <summary>
-    /// Activity log (recent events).
-    /// </summary>
     [ObservableProperty]
     private ObservableCollection<string> _activityLog = new();
 
-    /// <summary>
-    /// Available camera devices (populated by RefreshCameraDevices).
-    /// </summary>
     [ObservableProperty]
     private ObservableCollection<CameraDeviceInfo> _cameraDevices = new();
 
-    /// <summary>
-    /// Currently selected camera device.
-    /// Changing this while the camera is running triggers a hot-switch.
-    /// </summary>
     [ObservableProperty]
     private CameraDeviceInfo? _selectedCamera;
 
     // ─── Clinical Workflow State ───
-    // 4-step workflow: Identify → Verify → Enrol → Visit
 
-    /// <summary>Currently selected patient in the workflow.</summary>
-    private Person? _selectedPatient;
+    private Patient? _selectedPatient;
 
-    /// <summary>How the patient was found: "face" or "manual".</summary>
     [ObservableProperty]
     private string _identificationMethod = "";
 
-    /// <summary>True when patient found via manual search (amber banner).</summary>
     [ObservableProperty]
     private bool _needsBiometricUpdate;
 
-    /// <summary>True while an async workflow operation is running.</summary>
     [ObservableProperty]
     private bool _isBusy;
 
-    /// <summary>True when waiting for finger placement on scanner.</summary>
     [ObservableProperty]
     private bool _isFingerprintListening;
 
-    /// <summary>Maps SDK cache FID (FingerprintTemplate.Id) → PersonId for resolving matches.</summary>
-    private Dictionary<int, int> _fingerprintTemplateMap = new();
+    /// <summary>Maps SDK cache FID (Biometric.Id) → PID for resolving matches.</summary>
+    private Dictionary<int, string> _fingerprintTemplateMap = new();
 
     // ─── Step 1: Identify ───
 
@@ -157,7 +106,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private string _manualSearchQuery = "";
 
     [ObservableProperty]
-    private ObservableCollection<PersonSummary> _manualSearchResults = new();
+    private ObservableCollection<PatientSummary> _manualSearchResults = new();
 
     [ObservableProperty]
     private bool _hasManualSearchResults;
@@ -238,59 +187,93 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _pipeline = App.Services.GetRequiredService<RecognitionPipeline>();
         _dispatcher = Dispatcher.CurrentDispatcher;
 
-        // Subscribe to camera frames (producer: capture thread writes to buffer)
         _camera.FrameCaptured += OnFrameCaptured;
         _camera.CameraError += (_, msg) => AddLog($"Camera error: {msg}");
 
-        // Subscribe to WPF render loop (consumer: UI thread reads from buffer)
-        // CompositionTarget.Rendering fires once per WPF render frame (~60fps),
-        // synced with the rendering pipeline for smooth display.
         CompositionTarget.Rendering += OnRender;
 
-        // Subscribe to pipeline results
         _pipeline.ResultsUpdated += OnResultsUpdated;
         _pipeline.ProcessingError += (_, msg) => AddLog(msg);
 
-        // Initial database stats
         _ = RefreshDatabaseStatsAsync();
-
-        // Initial camera device scan
-        RefreshCameraDevices();
+        _ = RefreshCameraDevicesAsync();
     }
 
-    /// <summary>
-    /// Hot-switch: when the user picks a different camera while running,
-    /// stop the current camera and start the newly selected one.
-    /// </summary>
     partial void OnSelectedCameraChanged(CameraDeviceInfo? value)
     {
-        if (!IsCameraRunning || value == null)
+        if (value == null)
             return;
 
-        _camera.Stop();
-        bool success = _camera.Start(value);
-        if (success)
+        // Cancel and dispose any in-flight pre-warm for the previously selected device
+        _preWarmCts?.Cancel();
+        _preWarmCts?.Dispose();
+        _preWarmCts = null;
+
+        if (IsCameraRunning)
         {
-            _pipeline.SkipAntiSpoof = value.IsPhoneCamera;
-            StatusText = $"Switched to {value.Name}";
-            AddLog($"Switched to camera: {value.Name}");
-            if (value.IsPhoneCamera)
-                AddLog("Anti-spoof bypassed (virtual camera)");
+            _ = SwitchCameraAsync(value);
         }
         else
         {
+            // Pre-warm: open camera hardware in background so Start() is near-instant
+            _preWarmCts = new CancellationTokenSource();
+            var token = _preWarmCts.Token;
+            _ = Task.Run(() =>
+            {
+                if (!token.IsCancellationRequested)
+                    _camera.PreWarm(value);
+            }, token);
+        }
+    }
+
+    private async Task SwitchCameraAsync(CameraDeviceInfo device)
+    {
+        if (_isSwitching) return; // serialize — skip if a switch is already in progress
+        _isSwitching = true;
+        try
+        {
+            StatusText = $"Switching to {device.Name}...";
+
+            bool success = await Task.Run(() =>
+            {
+                _camera.Stop();
+                return _camera.Start(device);
+            });
+
+            if (success)
+            {
+                IsCameraRunning = true;
+                _pipeline.SkipAntiSpoof = device.IsPhoneCamera;
+                StatusText = $"Switched to {device.Name}";
+                AddLog($"Switched to camera: {device.Name}");
+                if (device.IsPhoneCamera)
+                    AddLog("Anti-spoof bypassed (virtual camera)");
+            }
+            else
+            {
+                IsCameraRunning = false;
+                StatusText = $"Failed to open {device.Name}";
+                AddLog($"Camera switch failed: {device.Name}");
+            }
+        }
+        catch (Exception ex)
+        {
             IsCameraRunning = false;
-            StatusText = $"Failed to open {value.Name}";
-            AddLog($"Camera switch failed: {value.Name}");
+            StatusText = $"Camera switch error: {ex.Message}";
+            AddLog($"Camera switch error: {ex.Message}");
+        }
+        finally
+        {
+            _isSwitching = false;
         }
     }
 
     // ──────────────────────────────────────────────
-    // Commands (bound to buttons via [RelayCommand])
+    // Commands
     // ──────────────────────────────────────────────
 
     [RelayCommand]
-    private void ToggleCamera()
+    private async Task ToggleCameraAsync()
     {
         if (IsCameraRunning)
         {
@@ -310,46 +293,60 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 return;
             }
 
-            bool success = _camera.Start(SelectedCamera);
+            var device = SelectedCamera;
+            IsCameraRunning = true; // prevent double-click re-entry
+            StatusText = $"Opening {device.Name}...";
+            AddLog($"Opening camera: {device.Name}");
+
+            bool success = await Task.Run(() => _camera.Start(device));
             if (success)
             {
-                IsCameraRunning = true;
-                _pipeline.SkipAntiSpoof = SelectedCamera.IsPhoneCamera;
-                StatusText = $"Camera running ({SelectedCamera.Name}) — detecting faces...";
-                AddLog($"Camera started: {SelectedCamera.Name}");
-                if (SelectedCamera.IsPhoneCamera)
+                _pipeline.SkipAntiSpoof = device.IsPhoneCamera;
+                StatusText = $"Camera running ({device.Name}) -- detecting faces...";
+                AddLog($"Camera started: {device.Name}");
+                if (device.IsPhoneCamera)
                     AddLog("Anti-spoof bypassed (virtual camera)");
             }
             else
             {
-                StatusText = $"Failed to open {SelectedCamera.Name}. Check connection.";
+                IsCameraRunning = false;
+                StatusText = $"Failed to open {device.Name}. Check connection.";
                 AddLog("Camera failed to start");
             }
         }
     }
 
     [RelayCommand]
-    private void RefreshCameraDevices()
+    private Task RefreshCameraDevicesAsync()
     {
-        var devices = _camera.GetAvailableDevices();
-
-        CameraDevices.Clear();
-        foreach (var device in devices)
-            CameraDevices.Add(device);
-
-        var selected = _camera.AutoSelectDevice(devices);
-        SelectedCamera = selected;
-
-        if (devices.Count == 0)
+        try
         {
-            AddLog("No cameras found");
+            // Run on UI thread (STA) — DirectShow COM objects require STA apartment.
+            // Enumeration is instant (~5ms, just a registry query).
+            var devices = _camera.GetAvailableDevices();
+
+            CameraDevices.Clear();
+            foreach (var device in devices)
+                CameraDevices.Add(device);
+
+            var selected = _camera.AutoSelectDevice(devices);
+            SelectedCamera = selected;
+
+            if (devices.Count == 0)
+                AddLog("No cameras found");
+            else
+            {
+                AddLog($"Found {devices.Count} camera(s)");
+                if (selected != null)
+                    AddLog($"Auto-selected: {selected.Name}");
+            }
         }
-        else
+        catch (Exception ex)
         {
-            AddLog($"Found {devices.Count} camera(s)");
-            if (selected != null)
-                AddLog($"Auto-selected: {selected.Name}");
+            AddLog($"Camera refresh failed: {ex.Message}");
+            StatusText = "Failed to enumerate cameras.";
         }
+        return Task.CompletedTask;
     }
 
     [RelayCommand]
@@ -358,8 +355,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var window = new Views.EnrolmentWindow();
         window.Owner = System.Windows.Application.Current.MainWindow;
         window.ShowDialog();
-
-        // Refresh stats after enrolment
         _ = RefreshDatabaseStatsAsync();
     }
 
@@ -369,8 +364,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var window = new Views.DatabaseWindow();
         window.Owner = System.Windows.Application.Current.MainWindow;
         window.ShowDialog();
-
-        // Refresh stats after changes
         _ = RefreshDatabaseStatsAsync();
     }
 
@@ -380,7 +373,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var window = new Views.BenchmarkWindow();
         window.Owner = System.Windows.Application.Current.MainWindow;
         window.ShowDialog();
-
         _ = RefreshDatabaseStatsAsync();
     }
 
@@ -401,8 +393,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // ──────────────────────────────────────────────
     // Clinical Workflow Commands
     // ──────────────────────────────────────────────
-
-    // ─── Step 1: Identify (1:N) ───
 
     [RelayCommand]
     private async Task IdentifyAsync()
@@ -447,9 +437,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     return;
                 }
 
-                if (result.IsIdentified && result.Recognition?.Person != null)
+                if (result.IsIdentified && result.Recognition?.Patient != null)
                 {
-                    var person = result.Recognition.Person;
+                    var person = result.Recognition.Patient;
 
                     IdentifyResultHeader = result.Recognition.IsHighConfidence ? "IDENTIFIED (HIGH)" : "IDENTIFIED";
                     IdentifyResultColor = "#5B7F62";
@@ -457,7 +447,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     HasIdentifyResult = true;
                     ShowEnrolNewOption = false;
 
-                    // Populate patient card
                     SetSelectedPatient(person, "face");
                     NeedsBiometricUpdate = false;
 
@@ -523,7 +512,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 StatusText = results.Count > 0
                     ? $"Found {results.Count} patient(s)"
                     : "No patients found matching that name.";
-                AddLog($"Search: \"{ManualSearchQuery.Trim()}\" → {results.Count} result(s)");
+                AddLog($"Search: \"{ManualSearchQuery.Trim()}\" -> {results.Count} result(s)");
             });
         }
         catch (Exception ex)
@@ -538,7 +527,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
-    private async Task SelectPatientAsync(PersonSummary summary)
+    private async Task SelectPatientAsync(PatientSummary summary)
     {
         if (summary == null) return;
 
@@ -574,7 +563,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    // ─── Photo Search (Biometric Search — photo) ───
+    // ─── Photo Search ───
 
     [RelayCommand]
     private async Task PhotoSearchAsync()
@@ -612,9 +601,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     return;
                 }
 
-                if (result.IsIdentified && result.Recognition?.Person != null)
+                if (result.IsIdentified && result.Recognition?.Patient != null)
                 {
-                    var person = result.Recognition.Person;
+                    var person = result.Recognition.Patient;
                     IdentifyResultHeader = "IDENTIFIED (PHOTO)";
                     IdentifyResultColor = "#5B7F62";
                     IdentifyResultText = result.Recognition.SimilarityText;
@@ -667,7 +656,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         if (!scanner.IsDeviceOpen)
         {
-            // Try to init and open
             int devCount = scanner.Initialize();
             if (devCount < 0)
             {
@@ -720,9 +708,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 return;
             }
 
-            // Store mapping for resolving matches (FID → PersonId)
+            // Store mapping for resolving matches (FID → PID)
             _fingerprintTemplateMap = templates.ToDictionary(
-                t => t.Key, t => t.Value.PersonId);
+                t => t.Key, t => t.Value.PID);
 
             // Load into SDK cache
             var cacheTemplates = templates.ToDictionary(
@@ -732,7 +720,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
             AddLog($"Loaded {templates.Count} fingerprint template(s) into cache");
         }
 
-        // Subscribe for next capture (one-shot)
         IsFingerprintListening = true;
         StatusText = "Place finger on scanner...";
         AddLog("Fingerprint search: waiting for finger");
@@ -750,9 +737,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
             IsFingerprintListening = false;
             var match = scanner.Identify(e.Template);
 
-            if (match != null && _fingerprintTemplateMap.TryGetValue(match.Fid, out int personId))
+            if (match != null && _fingerprintTemplateMap.TryGetValue(match.Fid, out string? pid))
             {
-                _ = ResolveFingerprintMatchAsync(personId, match.Score);
+                _ = ResolveFingerprintMatchAsync(pid, match.Score);
             }
             else
             {
@@ -768,22 +755,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         });
     }
 
-    private async Task ResolveFingerprintMatchAsync(int personId, int score)
+    private async Task ResolveFingerprintMatchAsync(string pid, int score)
     {
         try
         {
             var repo = App.Services.GetRequiredService<FaceRepository>();
-            var person = await repo.GetPersonByFingerprintIdAsync(
-                _fingerprintTemplateMap.FirstOrDefault(x => x.Value == personId).Key);
-
-            if (person == null)
-            {
-                // Fallback: try loading by person ID directly
-                var persons = await repo.GetAllPersonsAsync();
-                var summary = persons.FirstOrDefault(p => p.Id == personId);
-                if (summary != null)
-                    person = await repo.GetPatientByPidAsync(summary.IDCard);
-            }
+            var person = await repo.GetPatientByPidAsync(pid);
 
             _dispatcher.Invoke(() =>
             {
@@ -794,7 +771,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     IdentifyResultText = "Matched fingerprint but patient record not found.";
                     HasIdentifyResult = true;
                     StatusText = "Fingerprint matched but patient not found.";
-                    AddLog($"Fingerprint match error: personId={personId} not found");
+                    AddLog($"Fingerprint match error: PID={pid} not found");
                     return;
                 }
 
@@ -934,7 +911,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 return;
             }
 
-            var success = await Task.Run(() => _pipeline.AddFaceSampleAsync(frame, _selectedPatient.Id));
+            var pid = _selectedPatient.IDCard;
+            var success = await Task.Run(() => _pipeline.AddFaceSampleAsync(frame, pid));
 
             _dispatcher.Invoke(() =>
             {
@@ -995,10 +973,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
             var visit = new Visit
             {
-                PersonId = _selectedPatient.Id,
+                PID = _selectedPatient.IDCard,
                 ServiceType = VisitServiceType,
                 ChiefComplaint = string.IsNullOrWhiteSpace(VisitChiefComplaint) ? null : VisitChiefComplaint.Trim(),
-                VisitDate = DateTime.UtcNow
+                Date = DateTime.UtcNow,
+                CreatedBy = Environment.UserName,
+                CreatedDate = DateTime.UtcNow,
             };
 
             await repo.CreateVisitAsync(visit);
@@ -1011,9 +991,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     : FacialChangeReason.Trim();
                 var note = $"[{DateTime.UtcNow:yyyy-MM-dd}] {reason}";
 
-                _selectedPatient.Notes = string.IsNullOrEmpty(_selectedPatient.Notes)
+                _selectedPatient.Note = string.IsNullOrEmpty(_selectedPatient.Note)
                     ? note
-                    : $"{_selectedPatient.Notes}\n{note}";
+                    : $"{_selectedPatient.Note}\n{note}";
                 await repo.UpdatePatientAsync(_selectedPatient);
             }
 
@@ -1021,7 +1001,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             {
                 VisitLogged = true;
                 StatusText = $"Visit logged for {_selectedPatient.IDCard} ({VisitServiceType})";
-                AddLog($"Visit logged: {_selectedPatient.IDCard} — {VisitServiceType}");
+                AddLog($"Visit logged: {_selectedPatient.IDCard} -- {VisitServiceType}");
             });
         }
         catch (Exception ex)
@@ -1035,17 +1015,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    // ─── Print Routing Slip ───
-
     [RelayCommand]
     private void PrintRoutingSlip()
     {
         if (_selectedPatient == null) return;
-        AddLog($"Print routing slip: {_selectedPatient.IDCard} — {VisitServiceType}");
+        AddLog($"Print routing slip: {_selectedPatient.IDCard} -- {VisitServiceType}");
         StatusText = "Routing slip sent to printer.";
     }
-
-    // ─── Enrol New ───
 
     [RelayCommand]
     private void EnrolNew()
@@ -1053,11 +1029,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var window = new Views.EnrolmentWindow();
         window.Owner = System.Windows.Application.Current.MainWindow;
         window.ShowDialog();
-
         _ = RefreshDatabaseStatsAsync();
     }
-
-    // ─── Start Over ───
 
     [RelayCommand]
     private void StartOver()
@@ -1068,7 +1041,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IsBusy = false;
         IsFingerprintListening = false;
 
-        // Unsubscribe fingerprint handler if listening
         try
         {
             var scanner = App.Services.GetRequiredService<FingerprintService>();
@@ -1076,7 +1048,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         catch { }
 
-        // Identify
         IdentifyResultHeader = "";
         IdentifyResultColor = "#A8A29E";
         IdentifyResultText = "";
@@ -1086,7 +1057,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         HasManualSearchResults = false;
         ShowEnrolNewOption = false;
 
-        // Patient card
         ShowPatientCard = false;
         PatientPid = "";
         PatientName = "";
@@ -1094,7 +1064,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         PatientAge = "";
         PatientIdentifyTiming = "";
 
-        // Verify
         ShowVerifySection = false;
         VerifyResultHeader = "";
         VerifyResultColor = "#A8A29E";
@@ -1104,7 +1073,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         FacialChangeReason = "";
         PhotoUpdateStatus = "";
 
-        // Visit
         ShowVisitSection = false;
         VisitServiceType = "";
         VisitChiefComplaint = "";
@@ -1118,18 +1086,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // Workflow Helpers
     // ──────────────────────────────────────────────
 
-    private void SetSelectedPatient(Person person, string method)
+    private void SetSelectedPatient(Patient patient, string method)
     {
-        _selectedPatient = person;
+        _selectedPatient = patient;
         IdentificationMethod = method;
 
-        PatientPid = person.IDCard;
-        PatientName = person.FullName;
-        PatientSex = person.Sex switch { 1 => "M", 2 => "F", _ => "" };
-        PatientAge = CalculateAge(person);
+        PatientPid = patient.IDCard;
+        PatientName = patient.FullName ?? "";
+        PatientSex = patient.Sex switch { 1 => "M", 2 => "F", _ => "" };
+        PatientAge = CalculateAge(patient);
         ShowPatientCard = true;
 
-        // Reset downstream sections
         ShowVerifySection = false;
         HasVerifyResult = false;
         FacialChangeChecked = false;
@@ -1139,13 +1106,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
         VisitLogged = false;
     }
 
-    private static string CalculateAge(Person person)
+    private static string CalculateAge(Patient patient)
     {
-        if (person.AgeAtEnrolment.HasValue)
-            return $"{person.AgeAtEnrolment}y";
-        if (person.DOBYear.HasValue)
+        if (patient.Age.HasValue)
+            return $"{patient.Age}y";
+        if (patient.DOB_year.HasValue)
         {
-            int age = DateTime.Now.Year - person.DOBYear.Value;
+            int age = DateTime.Now.Year - patient.DOB_year.Value;
             return $"{age}y";
         }
         return "";
@@ -1155,26 +1122,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // Camera Frame Handler
     // ──────────────────────────────────────────────
 
-    /// <summary>
-    /// Camera frame handler (runs on capture thread ~30fps).
-    ///
-    /// Design: Producer-consumer pattern.
-    ///   - This handler (producer) writes the latest frame to a shared buffer.
-    ///   - OnRender (consumer) reads from the buffer on the UI thread.
-    ///   - Camera thread NEVER waits for the UI thread → no blocking.
-    ///   - If camera produces faster than UI renders, intermediate frames are dropped.
-    ///
-    /// Previous approach created a new frozen BitmapSource per frame (30 allocs/sec,
-    /// ~27MB/sec GC pressure) and queued 30 BeginInvoke calls/sec, overwhelming the
-    /// WPF dispatcher and causing the camera feed to freeze.
-    /// </summary>
     private void OnFrameCaptured(object? sender, FrameEventArgs e)
     {
         bool ownershipTransferred = false;
         try
         {
-            // Offload AI processing to thread pool (never blocks capture thread)
-            if (e.ShouldProcess)
+            if (e.ShouldProcess && !_pipeline.IsProcessing)
             {
                 var processingFrame = e.Frame.Clone();
                 _ = Task.Run(async () =>
@@ -1190,8 +1143,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 });
             }
 
-            // Draw overlays from last processed results (fast, ~1ms).
-            // Wrapped in its own try/catch so overlay failures don't prevent display.
             try
             {
                 _pipeline.DrawOverlays(e.Frame);
@@ -1201,8 +1152,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 System.Diagnostics.Debug.WriteLine($"Overlay error: {ex.Message}");
             }
 
-            // Transfer frame ownership to display buffer (zero-copy, no allocation).
-            // OnRender will pick up the latest frame on the next WPF render tick.
             lock (_displayLock)
             {
                 _latestDisplayFrame?.Dispose();
@@ -1221,20 +1170,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>
-    /// WPF render callback (runs on UI thread, synced with rendering pipeline).
-    ///
-    /// Reads the latest frame from the display buffer and copies pixels into
-    /// a single WriteableBitmap (no per-frame allocation, no GC pressure).
-    /// WriteableBitmap.Lock/memcpy/Unlock is ~1-2ms for 640x480.
-    /// </summary>
     private void OnRender(object? sender, EventArgs e)
     {
         Mat? frame;
         lock (_displayLock)
         {
             frame = _latestDisplayFrame;
-            _latestDisplayFrame = null; // Take ownership
+            _latestDisplayFrame = null;
         }
 
         if (frame == null) return;
@@ -1245,13 +1187,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 _writeableBitmap.PixelWidth != frame.Width ||
                 _writeableBitmap.PixelHeight != frame.Height)
             {
-                // First frame or resolution changed — create WriteableBitmap
                 _writeableBitmap = WpfImageHelper.CreateWriteableBitmap(frame);
-                CameraFrame = _writeableBitmap; // Bind once; WPF re-renders on dirty rect
+                CameraFrame = _writeableBitmap;
             }
             else
             {
-                // Update pixels in-place (Lock → memcpy → AddDirtyRect → Unlock)
                 WpfImageHelper.UpdateWriteableBitmap(frame, _writeableBitmap);
             }
 
@@ -1259,7 +1199,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            // Don't let render errors crash the app — just log and skip this frame
             System.Diagnostics.Debug.WriteLine($"[Render] Error: {ex.Message}");
         }
         finally
@@ -1276,28 +1215,23 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         _dispatcher.BeginInvoke(() =>
         {
-            // Update timing display
             TimingText = $"Detect: {_pipeline.LastDetectionTime.TotalMilliseconds:F0}ms | " +
                          $"Embed: {_pipeline.LastEmbeddingTime.TotalMilliseconds:F0}ms | " +
                          $"Search: {_pipeline.LastSearchTime.TotalMilliseconds:F0}ms | " +
                          $"Total: {_pipeline.LastTotalTime.TotalMilliseconds:F0}ms";
 
-            // Update liveness
             LivenessText = _pipeline.LivenessStatusText;
 
-            // Update results panel
             CurrentResults.Clear();
             foreach (var result in results)
             {
                 CurrentResults.Add(new RecognitionResultViewModel(result));
 
-                // Log recognized faces (avoid spamming — only log first occurrence)
-                if (result.IsRecognized && result.Person != null)
+                if (result.IsRecognized && result.Patient != null)
                 {
-                    // Dedupe by person name — similarity % changes each frame
                     AddLogIfNew(
-                        $"Recognized: {result.Person.FullName} ({result.SimilarityText})",
-                        $"recognized_{result.Person.Id}");
+                        $"Recognized: {result.Patient.FullName} ({result.SimilarityText})",
+                        $"recognized_{result.Patient.IDCard}");
                 }
             }
 
@@ -1326,7 +1260,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             var searchMode = repo.UseVectorSearch ? "DiskANN" : "KNN";
             _dispatcher.Invoke(() =>
             {
-                DatabaseText = $"DB: {stats.TotalPersons} persons, " +
+                DatabaseText = $"DB: {stats.TotalPatients} persons, " +
                                $"{stats.TotalEmbeddings} samples [{searchMode}]";
             });
         }
@@ -1338,17 +1272,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _dispatcher.BeginInvoke(() =>
         {
             ActivityLog.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {message}");
-            // Keep log size manageable
             while (ActivityLog.Count > 100)
                 ActivityLog.RemoveAt(ActivityLog.Count - 1);
         });
     }
 
     private string? _lastLogKey;
-    /// <summary>
-    /// Add a log entry only if the dedup key is different from the last one.
-    /// The key strips variable parts (like similarity %) to avoid spam.
-    /// </summary>
     private void AddLogIfNew(string message, string? dedupeKey = null)
     {
         var key = dedupeKey ?? message;
@@ -1364,9 +1293,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         CompositionTarget.Rendering -= OnRender;
         _camera.FrameCaptured -= OnFrameCaptured;
+        _preWarmCts?.Cancel();
+        _preWarmCts?.Dispose();
         _camera.Stop();
 
-        // Clean up fingerprint event subscriptions
         try
         {
             var scanner = App.Services.GetRequiredService<FingerprintService>();
@@ -1392,13 +1322,13 @@ public class RecognitionResultViewModel
     public string Similarity { get; }
     public string Status { get; }
     public string StatusColor { get; }
-    public Person? Person { get; }
+    public Patient? Patient { get; }
 
     public RecognitionResultViewModel(RecognitionResult result)
     {
-        Person = result.Person;
-        Name = result.Person?.FullName ?? "Unknown";
-        PID = result.Person?.IDCard ?? "";
+        Patient = result.Patient;
+        Name = result.Patient?.FullName ?? "Unknown";
+        PID = result.Patient?.IDCard ?? "";
         Similarity = result.SimilarityText;
 
         if (result.IsSpoofDetected)

@@ -23,12 +23,12 @@ public partial class DatabaseWindow : Window
     {
         try
         {
-            var persons = await _repository.GetAllPersonsAsync();
+            var persons = await _repository.GetAllPatientsAsync();
             PersonsGrid.ItemsSource = persons;
 
             var stats = await _repository.GetStatsAsync();
-            StatPersons.Text = $"Patients: {stats.TotalPersons}";
-            StatSamples.Text = $"Face Samples: {stats.TotalEmbeddings} (avg: {stats.AverageSamplesPerPerson:F1}/patient)";
+            StatPersons.Text = $"Patients: {stats.TotalPatients}";
+            StatSamples.Text = $"Face Samples: {stats.TotalEmbeddings} (avg: {stats.AverageSamplesPerPatient:F1}/patient)";
             StatRecognitions.Text = $"Total Recognitions: {stats.TotalRecognitions}";
             StatRate.Text = $"Recognition Rate: {stats.RecognitionRate:F1}%";
         }
@@ -79,7 +79,7 @@ public partial class DatabaseWindow : Window
 
     private async void OnDeleteClick(object sender, RoutedEventArgs e)
     {
-        if (PersonsGrid.SelectedItem is not PersonSummary selected)
+        if (PersonsGrid.SelectedItem is not PatientSummary selected)
         {
             MessageBox.Show("Please select a patient to delete.", "No Selection",
                 MessageBoxButton.OK, MessageBoxImage.Information);
@@ -97,7 +97,7 @@ public partial class DatabaseWindow : Window
 
         try
         {
-            await _repository.DeletePersonAsync(selected.Id);
+            await _repository.DeletePatientAsync(selected.IDCard);
             await LoadDataAsync();
         }
         catch (Exception ex)
@@ -107,9 +107,43 @@ public partial class DatabaseWindow : Window
         }
     }
 
+    private async void OnEditClick(object sender, RoutedEventArgs e)
+    {
+        if (PersonsGrid.SelectedItem is not PatientSummary selected)
+        {
+            MessageBox.Show("Please select a patient to edit.", "No Selection",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        try
+        {
+            var patient = await _repository.GetPatientByPidAsync(selected.IDCard);
+            if (patient == null)
+            {
+                MessageBox.Show("Patient not found.", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var editWindow = new EnrolmentWindow(patient);
+            editWindow.Owner = this;
+            if (editWindow.ShowDialog() == true)
+            {
+                // Refresh data after edit
+                await LoadDataAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Failed to load patient: {ex.Message}", "Error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private async void OnViewVisitsClick(object sender, RoutedEventArgs e)
     {
-        if (PersonsGrid.SelectedItem is not PersonSummary selected)
+        if (PersonsGrid.SelectedItem is not PatientSummary selected)
         {
             MessageBox.Show("Please select a patient to view visits.", "No Selection",
                 MessageBoxButton.OK, MessageBoxImage.Information);

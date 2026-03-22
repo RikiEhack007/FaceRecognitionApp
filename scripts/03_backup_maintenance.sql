@@ -1,5 +1,5 @@
 -- ============================================================
--- Face Recognition PoC — Backup & Maintenance
+-- Face Recognition App — Backup & Maintenance
 -- ============================================================
 -- Run periodically to maintain database health.
 -- ============================================================
@@ -27,12 +27,12 @@ SET @backupFile = @backupPath + 'FaceRecognitionDb_' + @timestamp + '.bak';
 -- Full backup
 BACKUP DATABASE FaceRecognitionDb
 TO DISK = @backupFile
-WITH FORMAT, 
+WITH FORMAT,
      MEDIANAME = 'FaceRecBackup',
      NAME = 'Full Backup of FaceRecognitionDb',
      COMPRESSION;
 
-PRINT '✅ Backup created: ' + @backupFile;
+PRINT 'Backup created: ' + @backupFile;
 GO
 
 -- ============================================================
@@ -40,19 +40,21 @@ GO
 -- ============================================================
 
 -- Rebuild fragmented indexes
-ALTER INDEX ALL ON Persons REBUILD;
-ALTER INDEX ALL ON FaceEmbeddings REBUILD;
+ALTER INDEX ALL ON Patients REBUILD;
+ALTER INDEX ALL ON Biometrics REBUILD;
+ALTER INDEX ALL ON Visits REBUILD;
 ALTER INDEX ALL ON RecognitionLogs REBUILD;
 
-PRINT '✅ Indexes rebuilt';
+PRINT 'Indexes rebuilt';
 GO
 
 -- Update statistics for query optimizer
-UPDATE STATISTICS Persons;
-UPDATE STATISTICS FaceEmbeddings;
+UPDATE STATISTICS Patients;
+UPDATE STATISTICS Biometrics;
+UPDATE STATISTICS Visits;
 UPDATE STATISTICS RecognitionLogs;
 
-PRINT '✅ Statistics updated';
+PRINT 'Statistics updated';
 GO
 
 -- ============================================================
@@ -68,14 +70,14 @@ DELETE FROM RecognitionLogs
 WHERE Timestamp < @cutoffDate;
 
 SET @deletedCount = @@ROWCOUNT;
-PRINT '✅ Cleaned up ' + CAST(@deletedCount AS NVARCHAR) + ' old recognition logs (>90 days)';
+PRINT 'Cleaned up ' + CAST(@deletedCount AS NVARCHAR) + ' old recognition logs (>90 days)';
 GO
 
 -- ============================================================
 -- PART 4: Database Size Report
 -- ============================================================
 
-SELECT 
+SELECT
     DB_NAME() AS DatabaseName,
     CAST(SUM(size * 8.0 / 1024) AS DECIMAL(10,2)) AS [Total Size (MB)],
     CAST(SUM(CASE WHEN type = 0 THEN size * 8.0 / 1024 ELSE 0 END) AS DECIMAL(10,2)) AS [Data Size (MB)],
@@ -83,7 +85,7 @@ SELECT
 FROM sys.database_files;
 
 -- Table-level breakdown
-SELECT 
+SELECT
     t.name AS TableName,
     p.rows AS RowCount,
     CAST(SUM(a.total_pages) * 8.0 / 1024 AS DECIMAL(10,2)) AS [Size (MB)]
@@ -95,12 +97,13 @@ GROUP BY t.name, p.rows
 ORDER BY SUM(a.total_pages) DESC;
 
 -- Embedding storage estimate
-SELECT 
-    COUNT(*) AS TotalEmbeddings,
+SELECT
+    COUNT(*) AS TotalFaceEmbeddings,
     CAST(COUNT(*) * 2048.0 / 1024 / 1024 AS DECIMAL(10,2)) AS [Estimated Vector Storage (MB)],
     CAST(50 * 1024 - (COUNT(*) * 2048.0 / 1024 / 1024) AS DECIMAL(10,2)) AS [Remaining Capacity (MB)],
     CAST(CAST(COUNT(*) * 2048.0 / 1024 / 1024 AS FLOAT) / (50 * 1024) * 100 AS DECIMAL(5,2)) AS [Usage %]
-FROM FaceEmbeddings;
+FROM Biometrics
+WHERE BiometricType = 'Face' AND Embedding IS NOT NULL;
 
-PRINT '✅ Database health report complete';
+PRINT 'Database health report complete';
 GO

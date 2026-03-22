@@ -112,7 +112,7 @@ public partial class RegisterWindow : System.Windows.Window
 
             if (result.Success)
             {
-                StatusLabel.Text = $"Successfully registered '{result.Person!.FullName}'!";
+                StatusLabel.Text = $"Successfully registered '{result.Patient!.FullName}'!";
                 StatusLabel.Foreground = new System.Windows.Media.SolidColorBrush(
                     System.Windows.Media.Color.FromRgb(0x5B, 0x7F, 0x62));
 

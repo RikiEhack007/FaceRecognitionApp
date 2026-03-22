@@ -225,7 +225,7 @@ public class RecognitionPipeline : IDisposable
                     {
                         result.Distance = match.Distance;
                         result.IsRecognized = match.IsMatch;
-                        result.Person = match.IsMatch ? match.Person : null;
+                        result.Patient = match.IsMatch ? match.Patient : null;
                     }
 
                     // Per-face ML anti-spoofing (skipped for virtual/phone cameras)
@@ -282,7 +282,7 @@ public class RecognitionPipeline : IDisposable
                     try
                     {
                         await _repository.LogRecognitionAsync(
-                            result.Person?.Id,
+                            result.Patient?.IDCard,
                             result.Distance,
                             result.IsRecognized,
                             result.IsLive);
@@ -324,6 +324,46 @@ public class RecognitionPipeline : IDisposable
     // ══════════════════════════════════════════════
 
     /// <summary>
+    /// Capture face embedding and thumbnail from a frame WITHOUT persisting to the database.
+    /// Use this when you need the embedding for a multi-step wizard that saves later.
+    /// </summary>
+    public CaptureResult CaptureFromFrame(Mat frame)
+    {
+        var result = new CaptureResult();
+        try
+        {
+            using var image = ImageConverter.MatToImageSharp(frame);
+
+            var face = _detector.DetectLargestFace(image);
+            if (face == null)
+            {
+                result.Error = "No face detected in the frame. Please ensure your face is clearly visible.";
+                return result;
+            }
+
+            var embedding = _recognizer.GenerateEmbedding(image, face.Value);
+            if (!FaceRecognitionService.IsValidEmbedding(embedding))
+            {
+                result.Error = "Failed to generate a valid face embedding. Try again with better lighting.";
+                return result;
+            }
+
+            byte[]? thumbnail = null;
+            try { thumbnail = ImageConverter.CropFaceThumbnail(image, face.Value.Box); }
+            catch { /* Thumbnail failure is not critical */ }
+
+            result.Success = true;
+            result.Embedding = embedding;
+            result.Thumbnail = thumbnail;
+        }
+        catch (Exception ex)
+        {
+            result.Error = $"Capture failed: {ex.Message}";
+        }
+        return result;
+    }
+
+    /// <summary>
     /// Register a new person from a single camera frame.
     /// Detects the largest face, generates embedding, stores in database.
     /// </summary>
@@ -361,10 +401,10 @@ public class RecognitionPipeline : IDisposable
             var existingMatch = await _repository.FindClosestMatchAsync(embedding);
             if (existingMatch != null && existingMatch.IsMatch)
             {
-                result.Error = $"This face appears to already be registered as '{existingMatch.Person.FullName}' " +
+                result.Error = $"This face appears to already be registered as '{existingMatch.Patient.FullName}' " +
                                $"(similarity: {existingMatch.SimilarityText}). " +
                                "Use 'Add Sample' to add more photos to an existing person.";
-                result.ExistingPerson = existingMatch.Person;
+                result.ExistingPatient = existingMatch.Patient;
                 return result;
             }
 
@@ -377,11 +417,11 @@ public class RecognitionPipeline : IDisposable
             catch { /* Thumbnail failure is not critical */ }
 
             // Store in database
-            var person = await _repository.RegisterPersonAsync(
+            var patient = await _repository.RegisterPatientAsync(
                 name, embedding, thumbnail, notes);
 
             result.Success = true;
-            result.Person = person;
+            result.Patient = patient;
         }
         catch (Exception ex)
         {
@@ -394,7 +434,7 @@ public class RecognitionPipeline : IDisposable
     /// <summary>
     /// Add another face sample to an existing person.
     /// </summary>
-    public async Task<bool> AddFaceSampleAsync(Mat frame, int personId, string? angle = null)
+    public async Task<bool> AddFaceSampleAsync(Mat frame, string pid, string? angle = null)
     {
         try
         {
@@ -410,7 +450,7 @@ public class RecognitionPipeline : IDisposable
             try { thumbnail = ImageConverter.CropFaceThumbnail(image, face.Value.Box); }
             catch { }
 
-            await _repository.AddFaceSampleAsync(personId, embedding, thumbnail, angle);
+            await _repository.AddFaceSampleAsync(pid, embedding, thumbnail, angle);
             return true;
         }
         catch
@@ -487,7 +527,7 @@ public class RecognitionPipeline : IDisposable
             {
                 recognition.Distance = match.Distance;
                 recognition.IsRecognized = match.IsMatch;
-                recognition.Person = match.IsMatch ? match.Person : null;
+                recognition.Patient = match.IsMatch ? match.Patient : null;
             }
 
             result.Success = true;
@@ -563,7 +603,7 @@ public class RecognitionPipeline : IDisposable
             {
                 recognition.Distance = match.Distance;
                 recognition.IsRecognized = match.IsMatch;
-                recognition.Person = match.IsMatch ? match.Person : null;
+                recognition.Patient = match.IsMatch ? match.Patient : null;
             }
 
             result.Success = true;
@@ -607,7 +647,7 @@ public class RecognitionPipeline : IDisposable
                 return result;
             }
 
-            if (patient.FaceEmbeddings.Count == 0)
+            if (!patient.Biometrics.Any(b => b.BiometricType == Core.Entities.BiometricRemarks.Types.Face))
             {
                 result.Error = $"Patient '{patient.FullName}' has no enrolled face samples.";
                 result.Patient = patient;
@@ -664,7 +704,7 @@ public class RecognitionPipeline : IDisposable
             }
 
             // 1:1 comparison against this patient only
-            var match = await _repository.VerifyAgainstPatientAsync(result.Patient!.Id, embedding);
+            var match = await _repository.VerifyAgainstPatientAsync(result.Patient!.IDCard, embedding);
 
             if (match != null)
             {
@@ -769,14 +809,14 @@ public class RecognitionPipeline : IDisposable
 public class RegistrationResult
 {
     public bool Success { get; set; }
-    public Person? Person { get; set; }
+    public Patient? Patient { get; set; }
     public string? Error { get; set; }
 
     /// <summary>
     /// If the face matched an existing person, this is set.
     /// Allows the UI to offer "Add sample to existing person" instead.
     /// </summary>
-    public Person? ExistingPerson { get; set; }
+    public Patient? ExistingPatient { get; set; }
 }
 
 /// <summary>
@@ -808,7 +848,7 @@ public class VerifyResult
     public string? Error { get; set; }
 
     /// <summary>The patient being verified against.</summary>
-    public Person? Patient { get; set; }
+    public Patient? Patient { get; set; }
 
     /// <summary>Best distance found among the patient's stored embeddings.</summary>
     public float Distance { get; set; } = 1.0f;
@@ -822,4 +862,16 @@ public class VerifyResult
     public bool IsHighConfidence => IsVerified && Distance <= RecognitionSettings.HighConfidenceDistance;
 
     public TimeSpan Elapsed { get; set; }
+}
+
+/// <summary>
+/// Result of a face capture without database persistence.
+/// Contains the embedding and thumbnail for deferred registration.
+/// </summary>
+public class CaptureResult
+{
+    public bool Success { get; set; }
+    public string? Error { get; set; }
+    public float[]? Embedding { get; set; }
+    public byte[]? Thumbnail { get; set; }
 }

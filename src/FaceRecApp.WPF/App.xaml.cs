@@ -23,6 +23,10 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // Disable MSMF hardware transforms — prevents multi-second camera init
+        // if OpenCV ever falls back to MSMF from DSHOW (OpenCV issue #17687)
+        Environment.SetEnvironmentVariable("OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS", "0");
+
         // ── Load configuration ──
         var configuration = new ConfigurationBuilder()
             .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)

@@ -12,9 +12,9 @@ namespace FaceRecApp.WPF.Views;
 public partial class VisitWindow : System.Windows.Window
 {
     private readonly FaceRepository _repository;
-    private readonly Person _patient;
+    private readonly Patient _patient;
 
-    public VisitWindow(Person patient)
+    public VisitWindow(Patient patient)
     {
         InitializeComponent();
 
@@ -38,7 +38,7 @@ public partial class VisitWindow : System.Windows.Window
     {
         try
         {
-            var visits = await _repository.GetPatientVisitsAsync(_patient.Id);
+            var visits = await _repository.GetPatientVisitsAsync(_patient.IDCard);
             VisitHistoryList.ItemsSource = visits;
         }
         catch { }
@@ -59,13 +59,14 @@ public partial class VisitWindow : System.Windows.Window
         {
             var visit = new Visit
             {
-                PersonId = _patient.Id,
-                VisitDate = DateTime.UtcNow,
+                PID = _patient.IDCard,
+                Date = DateTime.UtcNow,
                 ServiceType = ServiceTypeCombo.SelectedItem.ToString()!,
                 ChiefComplaint = string.IsNullOrWhiteSpace(ChiefComplaintInput.Text)
                     ? null
                     : ChiefComplaintInput.Text.Trim(),
-                CreatedBy = Environment.UserName
+                CreatedBy = Environment.UserName,
+                CreatedDate = DateTime.UtcNow
             };
 
             await _repository.CreateVisitAsync(visit);

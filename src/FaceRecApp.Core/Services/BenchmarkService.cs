@@ -7,18 +7,6 @@ namespace FaceRecApp.Core.Services;
 
 /// <summary>
 /// Performance benchmarking service.
-/// 
-/// Measures key operations:
-///   - Face detection speed (SCRFD model)
-///   - Embedding generation speed (ArcFace model)
-///   - SQL vector search speed (VECTOR_DISTANCE)
-///   - End-to-end pipeline speed
-/// 
-/// Use this to:
-///   - Verify the system meets speed requirements
-///   - Compare exact vs approximate (DiskANN) search
-///   - Identify bottlenecks
-///   - Generate performance reports for stakeholders
 /// </summary>
 public class BenchmarkService
 {
@@ -33,17 +21,13 @@ public class BenchmarkService
         _repository = repository;
     }
 
-    /// <summary>
-    /// Run the full benchmark suite and return results.
-    /// </summary>
     public async Task<BenchmarkReport> RunFullBenchmarkAsync(int iterations = 10)
     {
         var report = new BenchmarkReport();
 
-        // Get database stats
         await using var db = await _dbFactory.CreateDbContextAsync();
-        report.TotalPersons = await db.Persons.CountAsync(p => p.IsActive);
-        report.TotalEmbeddings = await db.FaceEmbeddings.CountAsync();
+        report.TotalPatients = await db.Patients.CountAsync();
+        report.TotalEmbeddings = await db.Biometrics.CountAsync(b => b.BiometricType == BiometricRemarks.Types.Face);
 
         if (report.TotalEmbeddings == 0)
         {
@@ -51,38 +35,24 @@ public class BenchmarkService
             return report;
         }
 
-        // ── Vector Search Benchmark ──
         report.VectorSearchResults = await BenchmarkVectorSearchAsync(iterations);
-
-        // ── Database Stats Query Benchmark ──
         report.StatsQueryResults = await BenchmarkStatsQueryAsync(iterations);
-
-        // ── Insert Benchmark ──
         report.InsertResults = await BenchmarkInsertAsync(5);
 
         report.Timestamp = DateTime.UtcNow;
         return report;
     }
 
-    /// <summary>
-    /// Benchmark SQL Server VECTOR_DISTANCE search.
-    /// This is the most critical operation — it runs on every processed frame.
-    /// </summary>
     public async Task<BenchmarkResult> BenchmarkVectorSearchAsync(int iterations = 10)
     {
         var result = new BenchmarkResult { Operation = "Vector Search (VECTOR_DISTANCE)" };
 
-        // Generate a random query vector (simulates a new face)
         var queryVector = GenerateRandomVector(RecognitionSettings.EmbeddingDimensions);
-
-        // Warm-up run (first query is always slower due to plan compilation)
         await _repository.FindClosestMatchAsync(queryVector);
 
-        // Timed runs
         var timings = new List<double>();
         for (int i = 0; i < iterations; i++)
         {
-            // Use a slightly different vector each time to avoid caching
             queryVector = GenerateRandomVector(RecognitionSettings.EmbeddingDimensions);
 
             var sw = Stopwatch.StartNew();
@@ -102,14 +72,10 @@ public class BenchmarkService
         return result;
     }
 
-    /// <summary>
-    /// Benchmark the stats query (used for dashboard).
-    /// </summary>
     public async Task<BenchmarkResult> BenchmarkStatsQueryAsync(int iterations = 10)
     {
         var result = new BenchmarkResult { Operation = "Stats Query (COUNT + AVG)" };
 
-        // Warm-up
         await _repository.GetStatsAsync();
 
         var timings = new List<double>();
@@ -131,18 +97,14 @@ public class BenchmarkService
         return result;
     }
 
-    /// <summary>
-    /// Benchmark inserting new embeddings.
-    /// </summary>
     public async Task<BenchmarkResult> BenchmarkInsertAsync(int iterations = 5)
     {
         var result = new BenchmarkResult { Operation = "Insert Embedding" };
 
-        // Create a temporary person for testing
-        var testPerson = await _repository.RegisterPersonAsync(
+        var testPatient = await _repository.RegisterPatientAsync(
             $"__benchmark_test_{Guid.NewGuid():N}",
             GenerateRandomVector(RecognitionSettings.EmbeddingDimensions),
-            notes: "Benchmark test — safe to delete");
+            notes: "Benchmark test -- safe to delete");
 
         var timings = new List<double>();
         for (int i = 0; i < iterations; i++)
@@ -150,14 +112,13 @@ public class BenchmarkService
             var embedding = GenerateRandomVector(RecognitionSettings.EmbeddingDimensions);
 
             var sw = Stopwatch.StartNew();
-            await _repository.AddFaceSampleAsync(testPerson.Id, embedding, angle: $"bench_{i}");
+            await _repository.AddFaceSampleAsync(testPatient.IDCard, embedding, angle: $"bench_{i}");
             sw.Stop();
 
             timings.Add(sw.Elapsed.TotalMilliseconds);
         }
 
-        // Clean up test data
-        await _repository.DeletePersonAsync(testPerson.Id);
+        await _repository.DeletePatientAsync(testPatient.IDCard);
 
         result.Iterations = iterations;
         result.MinMs = timings.Min();
@@ -171,13 +132,7 @@ public class BenchmarkService
 
     /// <summary>
     /// Populate the database with synthetic face embeddings for scale testing.
-    /// Uses batch inserts for high performance (~500 persons per SaveChanges).
-    ///
-    /// WARNING: This adds fake data. Use only for benchmarking.
     /// </summary>
-    /// <param name="personCount">Number of synthetic persons to create</param>
-    /// <param name="samplesPerPerson">Embeddings per person (default 1 for scale tests)</param>
-    /// <param name="progress">Optional callback: (inserted, total) for UI progress</param>
     public async Task<int> PopulateSyntheticDataAsync(
         int personCount,
         int samplesPerPerson = 1,
@@ -195,27 +150,28 @@ public class BenchmarkService
 
             for (int i = batchStart; i < batchEnd; i++)
             {
-                var person = new Person
+                var patient = new Patient
                 {
                     FullName = $"Synthetic Person #{i + 1:D6}",
                     IDCard = $"X{i + 1:D5}",
-                    Notes = "Synthetic benchmark data -- safe to delete",
-                    CreatedAt = DateTime.UtcNow,
-                    LastSeenAt = DateTime.UtcNow,
-                    IsActive = true
+                    Site = "X",
+                    Note = "Synthetic benchmark data -- safe to delete",
+                    CreatedOn = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"),
                 };
 
                 for (int j = 0; j < samplesPerPerson; j++)
                 {
-                    person.FaceEmbeddings.Add(new FaceEmbedding
+                    patient.Biometrics.Add(new Biometric
                     {
+                        BiometricType = BiometricRemarks.Types.Face,
                         Embedding = GenerateRandomVector(RecognitionSettings.EmbeddingDimensions),
                         CaptureAngle = "synthetic",
-                        CapturedAt = DateTime.UtcNow
+                        Date = DateTime.UtcNow,
+                        Consent = true,
                     });
                 }
 
-                db.Persons.Add(person);
+                db.Patients.Add(patient);
             }
 
             await db.SaveChangesAsync();
@@ -231,20 +187,16 @@ public class BenchmarkService
         return totalInserted;
     }
 
-    /// <summary>
-    /// Remove all synthetic benchmark data.
-    /// </summary>
     public async Task CleanupSyntheticDataAsync()
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
 
-        var synthetics = await db.Persons
-            .Where(p => p.Notes == "Synthetic benchmark data -- safe to delete"
-                     || p.Notes == "Synthetic benchmark data — safe to delete"
-                     || (p.Notes != null && p.Notes.StartsWith("Benchmark test")))
+        var synthetics = await db.Patients
+            .Where(p => p.Note == "Synthetic benchmark data -- safe to delete"
+                     || (p.Note != null && p.Note.StartsWith("Benchmark test")))
             .ToListAsync();
 
-        db.Persons.RemoveRange(synthetics);
+        db.Patients.RemoveRange(synthetics);
         await db.SaveChangesAsync();
     }
 
@@ -257,7 +209,6 @@ public class BenchmarkService
         for (int i = 0; i < dimensions; i++)
             vector[i] = (float)(rng.NextDouble() * 2 - 1);
 
-        // L2 normalize
         float norm = MathF.Sqrt(vector.Sum(v => v * v));
         for (int i = 0; i < dimensions; i++)
             vector[i] /= norm;
@@ -287,7 +238,7 @@ public class BenchmarkService
 public class BenchmarkReport
 {
     public DateTime Timestamp { get; set; }
-    public int TotalPersons { get; set; }
+    public int TotalPatients { get; set; }
     public int TotalEmbeddings { get; set; }
     public string? Notes { get; set; }
 
@@ -298,11 +249,11 @@ public class BenchmarkReport
     public override string ToString()
     {
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("═══════════════════════════════════════════");
-        sb.AppendLine("  FACE RECOGNITION — PERFORMANCE REPORT");
-        sb.AppendLine("═══════════════════════════════════════════");
+        sb.AppendLine("===========================================");
+        sb.AppendLine("  FACE RECOGNITION - PERFORMANCE REPORT");
+        sb.AppendLine("===========================================");
         sb.AppendLine($"  Date:       {Timestamp:yyyy-MM-dd HH:mm:ss UTC}");
-        sb.AppendLine($"  Persons:    {TotalPersons:N0}");
+        sb.AppendLine($"  Persons:    {TotalPatients:N0}");
         sb.AppendLine($"  Embeddings: {TotalEmbeddings:N0}");
         sb.AppendLine();
 
@@ -316,7 +267,7 @@ public class BenchmarkReport
         if (StatsQueryResults != null) sb.AppendLine(StatsQueryResults.ToString());
         if (InsertResults != null) sb.AppendLine(InsertResults.ToString());
 
-        sb.AppendLine("═══════════════════════════════════════════");
+        sb.AppendLine("===========================================");
         return sb.ToString();
     }
 }
@@ -333,7 +284,7 @@ public class BenchmarkResult
 
     public override string ToString()
     {
-        return $"  ── {Operation} ({Iterations} iterations) ──\n" +
+        return $"  -- {Operation} ({Iterations} iterations) --\n" +
                $"    Min:    {MinMs,8:F2} ms\n" +
                $"    Max:    {MaxMs,8:F2} ms\n" +
                $"    Avg:    {AvgMs,8:F2} ms\n" +

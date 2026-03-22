@@ -5,47 +5,50 @@ namespace FaceRecApp.Tests;
 
 /// <summary>
 /// Basic entity tests — these run without SQL Server (pure C# tests).
-/// Database integration tests will be added in later sections.
 /// </summary>
 public class EntityTests
 {
     [Fact]
-    public void Person_DefaultValues_AreCorrect()
+    public void Patient_DefaultValues_AreCorrect()
     {
-        var person = new Person { FullName = "John Doe", IDCard = "R00001" };
+        var patient = new Patient { FullName = "John Doe", IDCard = "R00001" };
 
-        Assert.Equal("John Doe", person.FullName);
-        Assert.True(person.IsActive);
-        Assert.Equal(0, person.TotalRecognitions);
-        Assert.NotEmpty(person.FaceEmbeddings.GetType().Name); // Collection initialized
+        Assert.Equal("John Doe", patient.FullName);
+        Assert.NotEmpty(patient.Biometrics.GetType().Name); // Collection initialized
     }
 
     [Fact]
-    public void FaceEmbedding_EmptyByDefault()
+    public void Biometric_Face_EmptyByDefault()
     {
-        var embedding = new FaceEmbedding();
+        var biometric = new Biometric
+        {
+            BiometricType = BiometricRemarks.Types.Face,
+        };
 
-        Assert.Empty(embedding.Embedding);
-        Assert.Null(embedding.FaceThumbnail);
-        Assert.Null(embedding.CaptureAngle);
+        Assert.Null(biometric.Embedding);
+        Assert.Null(biometric.FaceThumbnail);
+        Assert.Null(biometric.CaptureAngle);
+        Assert.True(biometric.IsFace);
+        Assert.False(biometric.IsFingerprint);
     }
 
     [Fact]
-    public void FaceEmbedding_Stores512Dimensions()
+    public void Biometric_Face_Stores512Dimensions()
     {
         // ArcFace outputs 512 dimensions
         var vector = new float[RecognitionSettings.EmbeddingDimensions];
         for (int i = 0; i < vector.Length; i++)
             vector[i] = (float)(i * 0.01);
 
-        var embedding = new FaceEmbedding
+        var biometric = new Biometric
         {
-            PersonId = 1,
+            PID = "R00001",
+            BiometricType = BiometricRemarks.Types.Face,
             Embedding = vector
         };
 
-        Assert.Equal(512, embedding.Embedding.Length);
-        Assert.InRange(embedding.Embedding[100], 0.99f, 1.01f); // ~1.0
+        Assert.Equal(512, biometric.Embedding!.Length);
+        Assert.InRange(biometric.Embedding[100], 0.99f, 1.01f); // ~1.0
     }
 
     [Fact]

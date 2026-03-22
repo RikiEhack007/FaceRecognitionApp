@@ -63,7 +63,7 @@
                     <ListBox.ItemTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal" Margin="0,2">
-                                <TextBlock Text="{Binding VisitDate, StringFormat='{}{0:dd/MM/yyyy HH:mm}'}"
+                                <TextBlock Text="{Binding Date, StringFormat='{}{0:dd/MM/yyyy HH:mm}'}"
                                            Foreground="{StaticResource TextSecondary}"
                                            FontSize="12" Width="120"/>
                                 <TextBlock Text="{Binding ServiceType}"

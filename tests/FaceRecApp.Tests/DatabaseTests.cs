@@ -8,11 +8,11 @@ namespace FaceRecApp.Tests;
 
 /// <summary>
 /// Integration tests that verify database operations work correctly.
-/// 
+///
 /// NOTE: These tests require a running SQL Server 2025 instance.
 /// They use InMemory database by default (vector operations won't work),
 /// but can be switched to real SQL Server for full integration testing.
-/// 
+///
 /// To run with real SQL Server:
 ///   1. Set USE_REAL_DB = true below
 ///   2. Update the connection string
@@ -32,6 +32,7 @@ public class DatabaseTests : IDisposable
 
     public DatabaseTests()
     {
+#pragma warning disable CS0162 // Unreachable code — USE_REAL_DB is a const toggle
         if (USE_REAL_DB)
         {
             // Real SQL Server — full vector support
@@ -54,30 +55,30 @@ public class DatabaseTests : IDisposable
 
             _dbFactory = new TestDbContextFactory(options);
         }
+#pragma warning restore CS0162
 
         _repository = new FaceRepository(_dbFactory);
     }
 
     [Fact]
-    public async Task RegisterPerson_SingleEmbedding_CreatesPersonAndEmbedding()
+    public async Task RegisterPatient_SingleEmbedding_CreatesPatientAndBiometric()
     {
         var embedding = CreateTestVector(512);
 
-        var person = await _repository.RegisterPersonAsync(
+        var patient = await _repository.RegisterPatientAsync(
             "Test Person", embedding, notes: "Test");
 
-        Assert.NotEqual(0, person.Id);
-        Assert.Equal("Test Person", person.FullName);
-        Assert.True(person.IsActive);
+        Assert.NotEmpty(patient.IDCard); // IDCard is assigned (may be empty string from repo)
+        Assert.Equal("Test Person", patient.FullName);
 
         // Verify in database
-        var loaded = await _repository.GetPersonWithEmbeddingsAsync(person.Id);
+        var loaded = await _repository.GetPatientWithBiometricsAsync(patient.IDCard);
         Assert.NotNull(loaded);
-        Assert.Single(loaded!.FaceEmbeddings);
+        Assert.Single(loaded!.Biometrics, b => b.BiometricType == BiometricRemarks.Types.Face);
     }
 
     [Fact]
-    public async Task RegisterPerson_MultipleEmbeddings_StoresAll()
+    public async Task RegisterPatient_MultipleEmbeddings_StoresAll()
     {
         var embeddings = new List<float[]>
         {
@@ -86,61 +87,57 @@ public class DatabaseTests : IDisposable
             CreateTestVector(512, seed: 3)
         };
 
-        var person = await _repository.RegisterPersonAsync(
+        var patient = await _repository.RegisterPatientAsync(
             "Multi Sample", embeddings);
 
-        var loaded = await _repository.GetPersonWithEmbeddingsAsync(person.Id);
+        var loaded = await _repository.GetPatientWithBiometricsAsync(patient.IDCard);
         Assert.NotNull(loaded);
-        Assert.Equal(3, loaded!.FaceEmbeddings.Count);
+        Assert.Equal(3, loaded!.Biometrics.Count(b => b.BiometricType == BiometricRemarks.Types.Face));
     }
 
     [Fact]
-    public async Task AddFaceSample_AddsToExistingPerson()
+    public async Task AddFaceSample_AddsToExistingPatient()
     {
-        var person = await _repository.RegisterPersonAsync(
+        var patient = await _repository.RegisterPatientAsync(
             "Growing Person", CreateTestVector(512));
 
-        await _repository.AddFaceSampleAsync(person.Id, CreateTestVector(512, seed: 99));
+        await _repository.AddFaceSampleAsync(patient.IDCard, CreateTestVector(512, seed: 99));
 
-        var loaded = await _repository.GetPersonWithEmbeddingsAsync(person.Id);
-        Assert.Equal(2, loaded!.FaceEmbeddings.Count);
+        var loaded = await _repository.GetPatientWithBiometricsAsync(patient.IDCard);
+        Assert.Equal(2, loaded!.Biometrics.Count(b => b.BiometricType == BiometricRemarks.Types.Face));
     }
 
     [Fact]
-    public async Task GetAllPersons_ReturnsOnlyActive()
+    public async Task GetAllPatients_ReturnsSummaries()
     {
-        await _repository.RegisterPersonAsync("Active1", CreateTestVector(512, seed: 1));
-        await _repository.RegisterPersonAsync("Active2", CreateTestVector(512, seed: 2));
-        var toDeactivate = await _repository.RegisterPersonAsync("Inactive", CreateTestVector(512, seed: 3));
+        await _repository.RegisterPatientAsync("Person1", CreateTestVector(512, seed: 1));
+        await _repository.RegisterPatientAsync("Person2", CreateTestVector(512, seed: 2));
 
-        await _repository.DeactivatePersonAsync(toDeactivate.Id);
-
-        var persons = await _repository.GetAllPersonsAsync();
-        Assert.DoesNotContain(persons, p => p.Name == "Inactive");
-        Assert.Contains(persons, p => p.Name == "Active1");
-        Assert.Contains(persons, p => p.Name == "Active2");
+        var patients = await _repository.GetAllPatientsAsync();
+        Assert.Contains(patients, p => p.Name == "Person1");
+        Assert.Contains(patients, p => p.Name == "Person2");
     }
 
     [Fact]
-    public async Task DeletePerson_RemovesPersonAndEmbeddings()
+    public async Task DeletePatient_RemovesPatientAndBiometrics()
     {
-        var person = await _repository.RegisterPersonAsync(
+        var patient = await _repository.RegisterPatientAsync(
             "To Delete", CreateTestVector(512));
 
-        await _repository.DeletePersonAsync(person.Id);
+        await _repository.DeletePatientAsync(patient.IDCard);
 
-        var loaded = await _repository.GetPersonWithEmbeddingsAsync(person.Id);
+        var loaded = await _repository.GetPatientWithBiometricsAsync(patient.IDCard);
         Assert.Null(loaded);
     }
 
     [Fact]
     public async Task LogRecognition_CreatesLogEntry()
     {
-        var person = await _repository.RegisterPersonAsync(
+        var patient = await _repository.RegisterPatientAsync(
             "Log Test", CreateTestVector(512));
 
         await _repository.LogRecognitionAsync(
-            person.Id, distance: 0.3f, wasRecognized: true, passedLiveness: true);
+            patient.IDCard, distance: 0.3f, wasRecognized: true, passedLiveness: true);
 
         var stats = await _repository.GetStatsAsync();
         Assert.True(stats.TotalRecognitions > 0);
@@ -149,11 +146,11 @@ public class DatabaseTests : IDisposable
     [Fact]
     public async Task GetStats_ReturnsCorrectCounts()
     {
-        await _repository.RegisterPersonAsync("Stats1", CreateTestVector(512, seed: 10));
-        await _repository.RegisterPersonAsync("Stats2", CreateTestVector(512, seed: 20));
+        await _repository.RegisterPatientAsync("Stats1", CreateTestVector(512, seed: 10));
+        await _repository.RegisterPatientAsync("Stats2", CreateTestVector(512, seed: 20));
 
         var stats = await _repository.GetStatsAsync();
-        Assert.True(stats.TotalPersons >= 2);
+        Assert.True(stats.TotalPatients >= 2);
         Assert.True(stats.TotalEmbeddings >= 2);
     }
 
@@ -161,30 +158,30 @@ public class DatabaseTests : IDisposable
     [Fact]
     public async Task FindClosestMatch_ReturnsNullForEmptyDatabase()
     {
+#pragma warning disable CS0162 // Unreachable code — USE_REAL_DB is a const toggle
         if (!USE_REAL_DB) return; // InMemory doesn't support VECTOR_DISTANCE
 
-        // Use a fresh database or search with random vector
         var queryVector = CreateTestVector(512, seed: 999);
-        // This should either return null or a high-distance result
         var result = await _repository.FindClosestMatchAsync(queryVector);
 
-        // If database is empty, result is null
-        // If database has data, result should have a distance > 0
         if (result != null)
         {
             Assert.True(result.Distance > 0);
         }
+#pragma warning restore CS0162
     }
 
     // ── Cleanup ──
 
     public void Dispose()
     {
+#pragma warning disable CS0162 // Unreachable code — USE_REAL_DB is a const toggle
         if (USE_REAL_DB)
         {
             using var db = _dbFactory.CreateDbContext();
             db.Database.EnsureDeleted();
         }
+#pragma warning restore CS0162
     }
 
     // ── Helpers ──
@@ -203,19 +200,4 @@ public class DatabaseTests : IDisposable
         return vector;
     }
 
-    // Simple factory for tests
-    private class TestDbContextFactory : IDbContextFactory<FaceDbContext>
-    {
-        private readonly DbContextOptions<FaceDbContext> _options;
-
-        public TestDbContextFactory(DbContextOptions<FaceDbContext> options)
-        {
-            _options = options;
-        }
-
-        public FaceDbContext CreateDbContext()
-        {
-            return new FaceDbContext(_options);
-        }
-    }
 }

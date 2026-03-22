@@ -5,7 +5,6 @@ namespace FaceRecApp.Core.Services;
 
 /// <summary>
 /// Generates unique Patient IDs (PIDs) in the format {SiteCode}{5digits}, e.g. "R00001".
-/// Thread-safe via retry on unique constraint violation.
 /// </summary>
 public class PidGenerationService
 {
@@ -22,24 +21,16 @@ public class PidGenerationService
         _dbFactory = dbFactory;
     }
 
-    /// <summary>
-    /// Generate the next available PID for the configured site code.
-    /// Format: {SiteCode}{00001} — e.g., "R00001", "R00002", etc.
-    /// </summary>
     public async Task<string> GenerateNextPidAsync()
     {
         return await GenerateNextPidAsync(SiteCode);
     }
 
-    /// <summary>
-    /// Generate the next available PID for a specific site code.
-    /// </summary>
     public async Task<string> GenerateNextPidAsync(string siteCode)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
 
-        // Find the maximum existing IDCard for this site
-        var maxIdCard = await db.Persons
+        var maxIdCard = await db.Patients
             .Where(p => p.Site == siteCode && p.IDCard.StartsWith(siteCode))
             .Select(p => p.IDCard)
             .OrderByDescending(id => id)

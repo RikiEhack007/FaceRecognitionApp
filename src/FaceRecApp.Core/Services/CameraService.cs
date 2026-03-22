@@ -1,4 +1,6 @@
 using System.Management;
+using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.ComTypes;
 using OpenCvSharp;
 using FaceRecApp.Core.Entities;
 
@@ -103,77 +105,145 @@ public class CameraService : IDisposable
     // ──────────────────────────────────────────────
 
     /// <summary>
-    /// Enumerates available camera devices by combining WMI device names
-    /// with OpenCV probe results. Tags phone/virtual cameras via pattern matching.
+    /// Enumerates available camera devices using DirectShow COM enumeration.
+    /// DirectShow returns devices in the same order as OpenCV indices — no
+    /// need to probe-open each device (which takes 1-3 seconds per index).
     /// </summary>
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     public List<CameraDeviceInfo> GetAvailableDevices()
     {
-        var wmiDevices = GetWmiCameraDevices();
+        var dsNames = GetDirectShowVideoDeviceNames();
         var devices = new List<CameraDeviceInfo>();
 
-        for (int i = 0; i < MaxProbeDevices; i++)
+        for (int i = 0; i < dsNames.Count; i++)
         {
-            try
+            devices.Add(new CameraDeviceInfo
             {
-                using var testCapture = new VideoCapture(i);
-                if (!testCapture.IsOpened())
-                    break; // No more devices
-
-                // Correlate with WMI by index (heuristic — standard approach)
-                string name = i < wmiDevices.Count ? wmiDevices[i].name : $"Camera {i}";
-                string deviceId = i < wmiDevices.Count ? wmiDevices[i].deviceId : "";
-                bool isPhone = IsPhoneCameraName(name);
-
-                devices.Add(new CameraDeviceInfo
-                {
-                    Index = i,
-                    Name = name,
-                    IsPhoneCamera = isPhone,
-                    DeviceId = deviceId
-                });
-            }
-            catch
-            {
-                // Device probe failed — skip this index
-            }
+                Index = i,
+                Name = dsNames[i],
+                IsPhoneCamera = IsPhoneCameraName(dsNames[i]),
+            });
         }
 
         return devices;
     }
 
     /// <summary>
-    /// Queries WMI for camera/imaging devices with friendly names.
-    /// Searches PNPClass Image/Camera and also SoftwareDevice entries
-    /// that contain "camera" in their name (catches Phone Link, virtual cameras).
+    /// Enumerates video capture devices via DirectShow COM interfaces.
+    /// Returns friendly names in the exact order that matches OpenCV device indices.
+    /// This is the only reliable way to correlate device names with OpenCV indices on Windows.
     /// </summary>
+    // DirectShow CLSIDs (Windows SDK constants)
+    private static readonly Guid CLSID_SystemDeviceEnum = new("62BE5D10-60EB-11d0-BD3B-00A0C911CE86");
+    private static readonly Guid CLSID_VideoInputDeviceCategory = new("860BB310-5D01-11d0-BD3B-00A0C911CE86");
+
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
-    private static List<(string name, string deviceId)> GetWmiCameraDevices()
+    private static List<string> GetDirectShowVideoDeviceNames()
     {
-        var results = new List<(string name, string deviceId)>();
+        var names = new List<string>();
 
         try
         {
-            // Query 1: Traditional hardware cameras (PNPClass = Image or Camera)
-            // Query 2: Virtual/software cameras like Phone Link (PNPClass = SoftwareDevice, name contains camera)
+            var devEnumType = Type.GetTypeFromCLSID(CLSID_SystemDeviceEnum);
+            if (devEnumType == null) return names;
+
+            var devEnum = (ICreateDevEnum)Activator.CreateInstance(devEnumType)!;
+            var category = CLSID_VideoInputDeviceCategory;
+
+            if (devEnum.CreateClassEnumerator(ref category, out var enumMoniker, 0) != 0
+                || enumMoniker == null)
+            {
+                Marshal.ReleaseComObject(devEnum);
+                return names;
+            }
+
+            var monikers = new IMoniker[1];
+            while (enumMoniker.Next(1, monikers, IntPtr.Zero) == 0)
+            {
+                try
+                {
+                    var iid = typeof(IPropertyBag_).GUID;
+                    monikers[0].BindToStorage(null!, null!, ref iid, out var bagObj);
+                    try
+                    {
+                        if (bagObj is IPropertyBag_ bag)
+                        {
+                            bag.Read("FriendlyName", out var nameVar, IntPtr.Zero);
+                            names.Add(nameVar?.ToString() ?? "Unknown");
+                        }
+                    }
+                    finally
+                    {
+                        if (bagObj != null)
+                            Marshal.ReleaseComObject(bagObj);
+                    }
+                }
+                finally
+                {
+                    Marshal.ReleaseComObject(monikers[0]);
+                }
+            }
+
+            Marshal.ReleaseComObject(enumMoniker);
+            Marshal.ReleaseComObject(devEnum);
+        }
+        catch
+        {
+            // DirectShow not available — fall back to WMI
+            return GetWmiCameraDeviceNames();
+        }
+
+        return names;
+    }
+
+    /// <summary>
+    /// Fallback: WMI device name enumeration (order may not match OpenCV indices).
+    /// </summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static List<string> GetWmiCameraDeviceNames()
+    {
+        var names = new List<string>();
+        try
+        {
             using var searcher = new ManagementObjectSearcher(
-                "SELECT Name, DeviceID, PNPClass FROM Win32_PnPEntity " +
+                "SELECT Name FROM Win32_PnPEntity " +
                 "WHERE PNPClass = 'Image' OR PNPClass = 'Camera' " +
                 "OR (PNPClass = 'SoftwareDevice' AND Name LIKE '%camera%')");
 
             foreach (var obj in searcher.Get())
-            {
-                var name = obj["Name"]?.ToString() ?? "Unknown";
-                var deviceId = obj["DeviceID"]?.ToString() ?? "";
-                results.Add((name, deviceId));
-            }
+                names.Add(obj["Name"]?.ToString() ?? "Unknown");
         }
-        catch
-        {
-            // WMI not available — fallback to index-based names
-        }
+        catch { }
+        return names;
+    }
 
-        return results;
+    // ─── DirectShow COM Interop (minimal) ───
+
+    [ComImport, Guid("29840822-5B84-11D0-BD3B-00A0C911CE86")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface ICreateDevEnum
+    {
+        [PreserveSig]
+        int CreateClassEnumerator(
+            ref Guid clsidDeviceClass,
+            out IEnumMoniker ppEnumMoniker,
+            int dwFlags);
+    }
+
+    [ComImport, Guid("55272A00-42CB-11CE-8135-00AA004BB851")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IPropertyBag_
+    {
+        [PreserveSig]
+        int Read(
+            [MarshalAs(UnmanagedType.LPWStr)] string pszPropName,
+            [MarshalAs(UnmanagedType.Struct)] out object? pVar,
+            IntPtr pErrorLog);
+
+        [PreserveSig]
+        int Write(
+            [MarshalAs(UnmanagedType.LPWStr)] string pszPropName,
+            [MarshalAs(UnmanagedType.Struct)] ref object pVar);
     }
 
     /// <summary>
@@ -235,16 +305,97 @@ public class CameraService : IDisposable
     }
 
     // ──────────────────────────────────────────────
-    // Start / Stop
+    // Pre-warm / Start / Stop
     // ──────────────────────────────────────────────
 
+    private volatile bool _isPreWarmed;
+    private int _preWarmIndex = -1;
+
     /// <summary>
-    /// Open the webcam and start the capture loop.
+    /// Pre-opens the camera hardware in the background so that Start() is near-instant.
+    /// Call from a background thread when the user selects a device (before they click Start).
     /// </summary>
-    /// <param name="cameraIndex">Camera device index (0 = default webcam)</param>
-    /// <param name="useDirectShow">Use DirectShow backend (better for virtual cameras)</param>
-    /// <returns>true if camera opened successfully</returns>
-    public bool Start(int cameraIndex = 0, bool useDirectShow = false)
+    public bool PreWarm(CameraDeviceInfo device)
+    {
+        if (_isRunning)
+            return true;
+
+        lock (_lock)
+        {
+            // Re-check under lock — Start() may have set _isRunning between the
+            // volatile read above and acquiring the lock
+            if (_isRunning)
+                return true;
+
+            // Already pre-warmed for this device
+            if (_isPreWarmed && _preWarmIndex == device.Index && _capture != null && _capture.IsOpened())
+                return true;
+
+            // Release any previous pre-warm
+            if (_capture != null)
+            {
+                _capture.Release();
+                _capture.Dispose();
+                _capture = null;
+                _isPreWarmed = false;
+            }
+
+            try
+            {
+                _capture = OpenCamera(device.Index);
+                if (_capture == null)
+                    return false;
+
+                // Read and discard warm-up frames (eliminates ~400ms first-frame spike)
+                using var warmup = new Mat();
+                for (int i = 0; i < 3; i++)
+                    _capture.Read(warmup);
+
+                _isPreWarmed = true;
+                _preWarmIndex = device.Index;
+                return true;
+            }
+            catch
+            {
+                _capture?.Dispose();
+                _capture = null;
+                return false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Opens a camera with DSHOW backend and configures MJPG + resolution.
+    /// DSHOW is 2-4x faster than MSMF for init on Windows.
+    /// MJPG is set before resolution to avoid device reinitialization.
+    /// </summary>
+    private static VideoCapture? OpenCamera(int cameraIndex)
+    {
+        // Always use DSHOW — it's 2-4x faster than MSMF for init
+        var capture = new VideoCapture(cameraIndex, VideoCaptureAPIs.DSHOW);
+        if (!capture.IsOpened())
+        {
+            capture.Dispose();
+            return null;
+        }
+
+        // Set FOURCC first (MJPG = compressed USB transfer, avoids device reinit on resolution change)
+        capture.Set(VideoCaptureProperties.FourCC, VideoWriter.FourCC('M', 'J', 'P', 'G'));
+
+        // Then resolution
+        capture.Set(VideoCaptureProperties.FrameWidth, RecognitionSettings.CameraWidth);
+        capture.Set(VideoCaptureProperties.FrameHeight, RecognitionSettings.CameraHeight);
+
+        // Buffer size last (reduces latency — not all drivers honor this)
+        capture.Set(VideoCaptureProperties.BufferSize, 1);
+
+        return capture;
+    }
+
+    /// <summary>
+    /// Start the capture loop. If PreWarm() was called, this is near-instant.
+    /// </summary>
+    public bool Start(int cameraIndex = 0)
     {
         if (_isRunning)
             return true;
@@ -253,38 +404,32 @@ public class CameraService : IDisposable
         {
             try
             {
-                _capture = useDirectShow
-                    ? new VideoCapture(cameraIndex, VideoCaptureAPIs.DSHOW)
-                    : new VideoCapture(cameraIndex);
-
-                if (!_capture.IsOpened())
+                // Use pre-warmed capture if available for this index
+                if (!(_isPreWarmed && _preWarmIndex == cameraIndex && _capture != null && _capture.IsOpened()))
                 {
-                    CameraError?.Invoke(this,
-                        $"Failed to open camera at index {cameraIndex}. " +
-                        "Make sure a webcam is connected and not in use by another application.");
-                    _capture.Dispose();
-                    _capture = null;
-                    return false;
+                    // No pre-warm — open fresh
+                    _capture?.Dispose();
+                    _capture = OpenCamera(cameraIndex);
+                    if (_capture == null)
+                    {
+                        CameraError?.Invoke(this,
+                            $"Failed to open camera at index {cameraIndex}. " +
+                            "Make sure a webcam is connected and not in use by another application.");
+                        return false;
+                    }
                 }
 
-                // Set resolution
-                _capture.Set(VideoCaptureProperties.FrameWidth, RecognitionSettings.CameraWidth);
-                _capture.Set(VideoCaptureProperties.FrameHeight, RecognitionSettings.CameraHeight);
-
-                // Try to set buffer size to 1 (reduces latency)
-                _capture.Set(VideoCaptureProperties.BufferSize, 1);
-
+                _isPreWarmed = false;
                 _isRunning = true;
                 _fpsTimer = DateTime.UtcNow;
                 _frameCount = 0;
                 TotalFrames = 0;
 
-                // Start capture on a dedicated background thread
                 _captureThread = new Thread(CaptureLoop)
                 {
-                    IsBackground = true,  // Won't prevent app exit
+                    IsBackground = true,
                     Name = "CameraCapture",
-                    Priority = ThreadPriority.AboveNormal  // Smooth video
+                    Priority = ThreadPriority.AboveNormal
                 };
                 _captureThread.Start();
 
@@ -302,12 +447,11 @@ public class CameraService : IDisposable
     }
 
     /// <summary>
-    /// Open a specific camera device and start the capture loop.
-    /// Uses DirectShow backend automatically for phone/virtual cameras.
+    /// Start capture for a specific device.
     /// </summary>
     public bool Start(CameraDeviceInfo device)
     {
-        return Start(device.Index, useDirectShow: device.IsPhoneCamera);
+        return Start(device.Index);
     }
 
     /// <summary>
@@ -319,8 +463,6 @@ public class CameraService : IDisposable
             return;
 
         _isRunning = false;
-
-        // Wait for capture thread to finish (with timeout)
         _captureThread?.Join(TimeSpan.FromSeconds(2));
 
         lock (_lock)
@@ -328,6 +470,7 @@ public class CameraService : IDisposable
             _capture?.Release();
             _capture?.Dispose();
             _capture = null;
+            _isPreWarmed = false;
         }
     }
 
