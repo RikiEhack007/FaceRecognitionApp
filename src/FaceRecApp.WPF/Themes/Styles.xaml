@@ -77,6 +77,22 @@
         <Setter Property="Padding" Value="16" />
     </Style>
 
+    <Style
+        x:Key="CardElevated"
+        BasedOn="{StaticResource Card}"
+        TargetType="Border">
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect
+                    BlurRadius="12"
+                    Direction="270"
+                    Opacity="0.08"
+                    ShadowDepth="4"
+                    Color="{DynamicResource ShadowColor}" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!--  ════════════════════════════════════════════  -->
     <!--  INPUTS — TextBox  -->
     <!--  ════════════════════════════════════════════  -->
@@ -410,6 +426,39 @@
         <Setter Property="Padding" Value="10,5" />
         <Setter Property="FontSize" Value="12" />
         <Setter Property="Height" Value="30" />
+    </Style>
+
+    <Style
+        x:Key="BtnGhost"
+        BasedOn="{StaticResource BtnSmall}"
+        TargetType="Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondary}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border
+                        x:Name="border"
+                        Padding="{TemplateBinding Padding}"
+                        Background="{TemplateBinding Background}"
+                        CornerRadius="6">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{DynamicResource BtnDefault}" />
+                            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{DynamicResource BtnDefaultPress}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <!--  ════════════════════════════════════════════  -->

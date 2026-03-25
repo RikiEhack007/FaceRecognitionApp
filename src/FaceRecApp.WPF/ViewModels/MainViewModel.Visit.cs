@@ -11,7 +11,8 @@ public partial class MainViewModel
     [RelayCommand]
     private void GoToVisit()
     {
-        ShowVisitSection = true; VisitServiceType = ""; VisitChiefComplaint = ""; VisitLogged = false;
+        VisitServiceType = ""; VisitChiefComplaint = ""; VisitLogged = false;
+        CurrentWorkflowStep = 4;
     }
 
     [RelayCommand]
@@ -62,8 +63,20 @@ public partial class MainViewModel
         PatientPid = patient.IDCard; PatientName = patient.FullName ?? "";
         PatientSex = patient.Sex switch { 1 => "M", 2 => "F", _ => "" };
         PatientAge = CalculateAge(patient); ShowPatientCard = true;
-        ShowVerifySection = false; HasVerifyResult = false; FacialChangeChecked = false;
-        FacialChangeReason = ""; PhotoUpdateStatus = ""; ShowVisitSection = false; VisitLogged = false;
+        HasVerifyResult = false; FacialChangeChecked = false;
+        FacialChangeReason = ""; PhotoUpdateStatus = ""; VisitLogged = false;
+        IdCardVerified = false;
+        CurrentWorkflowStep = 2;
+
+        PatientInitials = string.Join("", (patient.FullName ?? "")
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Take(2).Select(w => w[0].ToString().ToUpper()));
+
+        PatientDob = patient.DOB_year.HasValue
+            ? $"{patient.DOB_year}" +
+              (patient.DOB_month is > 0 ? $"-{patient.DOB_month:D2}" : "") +
+              (patient.DOB_day is > 0 ? $"-{patient.DOB_day:D2}" : "")
+            : "Unknown";
     }
 
     private static string CalculateAge(Patient patient)

@@ -1,4 +1,4 @@
-﻿<Window
+<Window
     x:Class="FaceRecApp.WPF.Views.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -15,14 +15,8 @@
     <Window.InputBindings>
         <KeyBinding Key="F5" Command="{Binding IdentifyCommand}" />
         <KeyBinding Key="F9" Command="{Binding ToggleCameraCommand}" />
-        <KeyBinding
-            Key="N"
-            Command="{Binding OpenRegisterCommand}"
-            Modifiers="Ctrl" />
-        <KeyBinding
-            Key="D"
-            Command="{Binding OpenDatabaseCommand}"
-            Modifiers="Ctrl" />
+        <KeyBinding Key="N" Command="{Binding OpenRegisterCommand}" Modifiers="Ctrl" />
+        <KeyBinding Key="D" Command="{Binding OpenDatabaseCommand}" Modifiers="Ctrl" />
         <KeyBinding Key="F2" Command="{Binding StartOverCommand}" />
     </Window.InputBindings>
 
@@ -40,94 +34,33 @@
         <!--  ══════════════════════════════════════  -->
         <!--  TOP BAR  -->
         <!--  ══════════════════════════════════════  -->
-        <Border
-            Grid.Row="0"
-            Padding="16,10"
-            Background="{DynamicResource BgDark}">
+        <Border Grid.Row="0" Padding="16,10" Background="{DynamicResource BgDark}">
             <DockPanel>
-                <TextBlock
-                    VerticalAlignment="Center"
-                    DockPanel.Dock="Left"
-                    FontSize="15"
-                    FontWeight="SemiBold"
-                    Foreground="{DynamicResource TextOnDark}"
-                    Text="Face Recognition" />
+                <TextBlock VerticalAlignment="Center" DockPanel.Dock="Left"
+                           FontSize="15" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextOnDark}" Text="Face Recognition" />
 
-                <StackPanel
-                    HorizontalAlignment="Right"
-                    DockPanel.Dock="Right"
-                    Orientation="Horizontal">
-                    <ComboBox
-                        Width="180"
-                        Margin="0,0,4,0"
-                        DisplayMemberPath="Name"
-                        ItemsSource="{Binding CameraDevices}"
-                        SelectedItem="{Binding SelectedCamera}"
-                        Style="{DynamicResource DarkComboBox}" />
-                    <Button
-                        Width="32"
-                        Margin="0,0,6,0"
-                        Background="#3D3835"
-                        Command="{Binding RefreshCameraDevicesCommand}"
-                        Content="&#x21BB;"
-                        FontSize="14"
-                        Foreground="{DynamicResource TextOnDark}"
-                        Style="{DynamicResource BtnBase}"
-                        ToolTip="Refresh camera list" />
-                    <Button
-                        Width="120"
-                        Margin="0,0,6,0"
-                        Command="{Binding ToggleCameraCommand}"
-                        Content="{Binding IsCameraRunning, Converter={x:Static local:Converters.CameraButtonText}}"
-                        Style="{DynamicResource BtnPrimary}" />
-                    <Button
-                        Margin="0,0,6,0"
-                        Background="#3D3835"
-                        Command="{Binding OpenRegisterCommand}"
-                        Content="Enrol"
-                        Foreground="{DynamicResource TextOnDark}"
-                        Style="{DynamicResource BtnBase}" />
-                    <Button
-                        Margin="0,0,6,0"
-                        Background="#3D3835"
-                        Command="{Binding OpenDatabaseCommand}"
-                        Content="Database"
-                        Foreground="{DynamicResource TextOnDark}"
-                        Style="{DynamicResource BtnBase}" />
-                    <Button
-                        Margin="0,0,6,0"
-                        Background="#3D3835"
-                        Command="{Binding OpenBenchmarkCommand}"
-                        Content="Benchmark"
-                        Foreground="{DynamicResource TextOnDark}"
-                        Style="{DynamicResource BtnBase}" />
-                    <Button
-                        Background="#3D3835"
-                        Command="{Binding ResetLivenessCommand}"
-                        Content="Reset Liveness"
-                        Foreground="{DynamicResource TextOnDark}"
-                        Style="{DynamicResource BtnBase}" />
+                <StackPanel HorizontalAlignment="Right" DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Margin="0,0,6,0" Background="#3D3835" Command="{Binding OpenRegisterCommand}"
+                            Content="Enrol" Foreground="{DynamicResource TextOnDark}"
+                            Style="{DynamicResource BtnBase}" ToolTip="Ctrl+N" />
+                    <Button Margin="0,0,6,0" Background="#3D3835" Command="{Binding OpenDatabaseCommand}"
+                            Content="Database" Foreground="{DynamicResource TextOnDark}"
+                            Style="{DynamicResource BtnBase}" ToolTip="Ctrl+D" />
+                    <Button Margin="0,0,6,0" Background="#3D3835" Command="{Binding OpenBenchmarkCommand}"
+                            Content="Benchmark" Foreground="{DynamicResource TextOnDark}"
+                            Style="{DynamicResource BtnBase}" />
+                    <Border Width="1" Margin="6,4" Background="#475569" />
+                    <Button Width="36" Background="#3D3835" Command="{Binding ToggleThemeCommand}"
+                            FontSize="15" Foreground="{DynamicResource TextOnDark}"
+                            Style="{DynamicResource BtnBase}" ToolTip="Toggle theme">
+                        <Button.Content><TextBlock Text="&#x2600;" /></Button.Content>
+                    </Button>
                 </StackPanel>
 
-                <StackPanel
-                    Margin="24,0"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    Orientation="Horizontal">
-                    <TextBlock
-                        Margin="0,0,20,0"
-                        FontSize="12"
-                        Foreground="#A8A29E"
-                        Text="{Binding FpsText}" />
-                    <TextBlock
-                        Margin="0,0,20,0"
-                        FontSize="12"
-                        Foreground="#A8A29E"
-                        Text="{Binding DatabaseText}" />
-                    <TextBlock
-                        FontSize="12"
-                        Foreground="#A8A29E"
-                        Text="{Binding LivenessText}" />
+                <StackPanel Margin="24,0" HorizontalAlignment="Center" VerticalAlignment="Center" Orientation="Horizontal">
+                    <TextBlock Margin="0,0,20,0" FontSize="12" Foreground="#A8A29E" Text="{Binding FpsText}" />
+                    <TextBlock FontSize="12" Foreground="#A8A29E" Text="{Binding DatabaseText}" />
                 </StackPanel>
             </DockPanel>
         </Border>
@@ -139,531 +72,763 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="5*" />
                 <ColumnDefinition Width="16" />
-                <ColumnDefinition Width="3*" MinWidth="320" />
+                <ColumnDefinition Width="3*" MinWidth="360" />
             </Grid.ColumnDefinitions>
 
-            <!--  Camera Feed  -->
-            <Border
-                Grid.Column="0"
-                Padding="0"
-                ClipToBounds="True"
-                Style="{DynamicResource Card}">
-                <Grid>
-                    <Image
-                        RenderOptions.BitmapScalingMode="NearestNeighbor"
-                        Source="{Binding CameraFrame}"
-                        Stretch="Uniform" />
+            <!--  LEFT: Camera Area  -->
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
 
-                    <!--  Placeholder  -->
-                    <StackPanel
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Visibility="{Binding IsCameraRunning, Converter={x:Static local:Converters.InverseBoolToVis}}">
-                        <TextBlock
-                            Margin="0,0,0,6"
-                            HorizontalAlignment="Center"
-                            FontSize="16"
-                            FontWeight="Medium"
-                            Foreground="{DynamicResource TextMuted}"
-                            Text="Camera Off" />
-                        <TextBlock
-                            HorizontalAlignment="Center"
-                            FontSize="12"
-                            Foreground="{DynamicResource TextMuted}"
-                            Text="Click Start Camera to begin" />
-                    </StackPanel>
-                </Grid>
-            </Border>
-
-            <!--  ═══════════════════════════════════════  -->
-            <!--  WORKFLOW PANEL (scrollable)  -->
-            <!--  ═══════════════════════════════════════  -->
-            <ScrollViewer
-                Grid.Column="2"
-                HorizontalScrollBarVisibility="Disabled"
-                VerticalScrollBarVisibility="Auto">
-                <StackPanel>
-
-                    <!--  ═══════════════════════════════  -->
-                    <!--  CARD 1: IDENTIFY  -->
-                    <!--  ═══════════════════════════════  -->
-                    <Border Margin="0,0,0,8" Style="{DynamicResource Card}">
-                        <StackPanel>
-                            <TextBlock
-                                Margin="0,0,0,10"
-                                Style="{DynamicResource SectionHeader}"
-                                Text="IDENTIFY" />
-
-                            <!--  ① Face Recognition  -->
-                            <StackPanel Margin="0,0,0,6" Orientation="Horizontal">
-                                <TextBlock
-                                    Margin="0,0,6,0"
-                                    VerticalAlignment="Center"
-                                    FontSize="13"
-                                    Foreground="{DynamicResource AccentPrimary}"
-                                    Text="&#x2460;" />
-                                <TextBlock
-                                    VerticalAlignment="Center"
-                                    FontSize="10"
-                                    FontWeight="SemiBold"
-                                    Foreground="{DynamicResource TextSecondary}"
-                                    Text="FACE RECOGNITION" />
-                            </StackPanel>
-                            <Button
-                                Margin="0,0,0,12"
-                                HorizontalAlignment="Stretch"
-                                Command="{Binding IdentifyCommand}"
-                                Content="Identify Patient (1:N)"
-                                IsEnabled="{Binding IsCameraRunning}"
-                                Style="{DynamicResource BtnPrimary}" />
-
-                            <!--  ② Biometric Search  -->
-                            <StackPanel Margin="0,0,0,6" Orientation="Horizontal">
-                                <TextBlock
-                                    Margin="0,0,6,0"
-                                    VerticalAlignment="Center"
-                                    FontSize="13"
-                                    Foreground="{DynamicResource AccentPrimary}"
-                                    Text="&#x2461;" />
-                                <TextBlock
-                                    VerticalAlignment="Center"
-                                    FontSize="10"
-                                    FontWeight="SemiBold"
-                                    Foreground="{DynamicResource TextSecondary}"
-                                    Text="BIOMETRIC SEARCH" />
-                            </StackPanel>
-                            <Grid Margin="0,0,0,12">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="6" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Button
-                                    Grid.Column="0"
-                                    HorizontalAlignment="Stretch"
-                                    Command="{Binding PhotoSearchCommand}"
-                                    Content="Search by Photo"
-                                    Style="{DynamicResource BtnBase}" />
-                                <Button
-                                    Grid.Column="2"
-                                    HorizontalAlignment="Stretch"
-                                    Command="{Binding FingerprintSearchCommand}"
-                                    Content="Fingerprint"
-                                    Style="{DynamicResource BtnBase}" />
-                            </Grid>
-
-                            <!--  ③ Manual Search  -->
-                            <StackPanel Margin="0,0,0,6" Orientation="Horizontal">
-                                <TextBlock
-                                    Margin="0,0,6,0"
-                                    VerticalAlignment="Center"
-                                    FontSize="13"
-                                    Foreground="{DynamicResource AccentPrimary}"
-                                    Text="&#x2462;" />
-                                <TextBlock
-                                    VerticalAlignment="Center"
-                                    FontSize="10"
-                                    FontWeight="SemiBold"
-                                    Foreground="{DynamicResource TextSecondary}"
-                                    Text="MANUAL SEARCH" />
-                            </StackPanel>
-                            <Grid Margin="0,0,0,8">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="6" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBox
-                                    Grid.Column="0"
-                                    Style="{DynamicResource InputBox}"
-                                    Text="{Binding ManualSearchQuery, UpdateSourceTrigger=PropertyChanged}" />
-                                <Button
-                                    Grid.Column="2"
-                                    Padding="14,8"
-                                    Command="{Binding ManualSearchCommand}"
-                                    Content="Search"
-                                    Style="{DynamicResource BtnBase}" />
-                            </Grid>
-
-                            <!--  Search Results  -->
-                            <ItemsControl ItemsSource="{Binding ManualSearchResults}" Visibility="{Binding HasManualSearchResults, Converter={x:Static local:Converters.BoolToVis}}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border
-                                            Margin="0,0,0,4"
-                                            Padding="8,6"
-                                            Background="{DynamicResource BgSurfaceDim}"
-                                            CornerRadius="4">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <TextBlock
-                                                            Margin="0,0,6,0"
-                                                            FontSize="11"
-                                                            FontWeight="SemiBold"
-                                                            Foreground="{DynamicResource AccentPrimary}"
-                                                            Text="{Binding IDCard}" />
-                                                        <TextBlock
-                                                            FontSize="12"
-                                                            FontWeight="Medium"
-                                                            Foreground="{DynamicResource TextPrimary}"
-                                                            Text="{Binding Name}" />
-                                                    </StackPanel>
-                                                </StackPanel>
-                                                <Button
-                                                    Grid.Column="1"
-                                                    VerticalAlignment="Center"
-                                                    Command="{Binding DataContext.SelectPatientCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                    CommandParameter="{Binding}"
-                                                    Content="Select"
-                                                    Style="{DynamicResource BtnSmall}" />
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-
-                            <!--  Identify Result Badge  -->
-                            <Border Margin="0,4,0,0" Visibility="{Binding HasIdentifyResult, Converter={x:Static local:Converters.BoolToVis}}">
-                                <StackPanel>
-                                    <DockPanel>
-                                        <Border
-                                            Padding="10,4"
-                                            Background="{Binding IdentifyResultColor}"
-                                            CornerRadius="3"
-                                            DockPanel.Dock="Left">
-                                            <TextBlock
-                                                FontSize="11"
-                                                FontWeight="Bold"
-                                                Foreground="#FFFFFF"
-                                                Text="{Binding IdentifyResultHeader}" />
-                                        </Border>
-                                        <TextBlock
-                                            HorizontalAlignment="Right"
-                                            VerticalAlignment="Center"
-                                            DockPanel.Dock="Right"
-                                            Style="{DynamicResource MonoText}"
-                                            Text="{Binding PatientIdentifyTiming}" />
-                                    </DockPanel>
-                                    <TextBlock
-                                        Margin="0,4,0,0"
-                                        FontSize="12"
-                                        Foreground="{DynamicResource TextSecondary}"
-                                        Text="{Binding IdentifyResultText}"
-                                        TextWrapping="Wrap"
-                                        Visibility="{Binding IdentifyResultText, Converter={x:Static local:Converters.NonEmptyToVisible}}" />
-                                </StackPanel>
-                            </Border>
-
-                            <!--  Enrol New (when unknown)  -->
-                            <Button
-                                Margin="0,8,0,0"
-                                HorizontalAlignment="Left"
-                                Command="{Binding EnrolNewCommand}"
-                                Content="Enrol New Patient"
-                                Style="{DynamicResource BtnBase}"
-                                Visibility="{Binding ShowEnrolNewOption, Converter={x:Static local:Converters.BoolToVis}}" />
+                <Border Grid.Row="0" Margin="0,0,0,8" Padding="12,8"
+                        Background="{DynamicResource BgSurface}" BorderBrush="{DynamicResource BorderDefault}"
+                        BorderThickness="1" CornerRadius="8">
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <Button Margin="0,0,6,0" Padding="10,4" Command="{Binding ResetLivenessCommand}"
+                                    Content="Reset Liveness" FontSize="12" Style="{DynamicResource BtnGhost}" />
                         </StackPanel>
-                    </Border>
+                        <StackPanel Orientation="Horizontal">
+                            <ComboBox Width="180" Margin="0,0,4,0" DisplayMemberPath="Name" FontSize="12" Height="30"
+                                      ItemsSource="{Binding CameraDevices}" SelectedItem="{Binding SelectedCamera}" />
+                            <Button Width="30" Height="30" Margin="0,0,6,0" Command="{Binding RefreshCameraDevicesCommand}"
+                                    Content="&#x21BB;" FontSize="13" Style="{DynamicResource BtnBase}" ToolTip="Refresh camera list" />
+                            <Button Width="120" Height="30" Command="{Binding ToggleCameraCommand}"
+                                    Content="{Binding IsCameraRunning, Converter={x:Static local:Converters.CameraButtonText}}"
+                                    FontSize="12" Style="{DynamicResource BtnPrimary}" ToolTip="F9" />
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
 
-                    <!--  ═══════════════════════════════  -->
-                    <!--  CARD 2: PATIENT CARD  -->
-                    <!--  ═══════════════════════════════  -->
-                    <Border
-                        Margin="0,0,0,8"
-                        Style="{DynamicResource Card}"
-                        Visibility="{Binding ShowPatientCard, Converter={x:Static local:Converters.BoolToVis}}">
-                        <StackPanel>
-                            <TextBlock
-                                Margin="0,0,0,8"
-                                Style="{DynamicResource SectionHeader}"
-                                Text="PATIENT" />
+                <Border Grid.Row="1" ClipToBounds="True" Style="{DynamicResource Card}" Padding="0">
+                    <Grid>
+                        <Image RenderOptions.BitmapScalingMode="NearestNeighbor" Source="{Binding CameraFrame}" Stretch="Uniform" />
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                    Visibility="{Binding IsCameraRunning, Converter={x:Static local:Converters.InverseBoolToVis}}">
+                            <TextBlock HorizontalAlignment="Center" FontSize="32" Foreground="{DynamicResource TextMuted}" Text="&#x1F4F7;" />
+                            <TextBlock Margin="0,8,0,0" HorizontalAlignment="Center" FontSize="15" FontWeight="Medium"
+                                       Foreground="{DynamicResource TextMuted}" Text="Camera Off" />
+                            <TextBlock Margin="0,4,0,0" HorizontalAlignment="Center" FontSize="12"
+                                       Foreground="{DynamicResource TextMuted}" Text="Click Start Camera or press F9" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
 
-                            <!--  PID + Name + Sex/Age  -->
-                            <StackPanel Margin="0,0,0,4" Orientation="Horizontal">
-                                <TextBlock
-                                    Margin="0,0,10,0"
-                                    FontSize="14"
-                                    FontWeight="SemiBold"
-                                    Foreground="{DynamicResource AccentPrimary}"
-                                    Text="{Binding PatientPid}"
-                                    Visibility="{Binding PatientPid, Converter={x:Static local:Converters.NonEmptyToVisible}}" />
-                                <TextBlock
-                                    Margin="0,0,10,0"
-                                    FontSize="14"
-                                    FontWeight="Medium"
-                                    Foreground="{DynamicResource TextPrimary}"
-                                    Text="{Binding PatientName}" />
-                                <TextBlock
-                                    VerticalAlignment="Center"
-                                    FontSize="13"
-                                    Foreground="{DynamicResource TextSecondary}">
-                                    <Run Text="{Binding PatientSex, Mode=OneWay}" />
-                                    <Run Text="{Binding PatientAge, Mode=OneWay, StringFormat='  {0}'}" />
+            <!--  ═══════════════════════════════════════  -->
+            <!--  RIGHT: Workflow Panel  -->
+            <!--  ═══════════════════════════════════════  -->
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!--  ═══════════════════════════════════  -->
+                <!--  4-STEP WORKFLOW INDICATOR  -->
+                <!--  ═══════════════════════════════════  -->
+                <Border Grid.Row="0" Margin="0,0,0,10" Padding="12,10"
+                        Background="{DynamicResource BgSurface}" BorderBrush="{DynamicResource BorderDefault}"
+                        BorderThickness="1" CornerRadius="10">
+                    <DockPanel>
+                        <Button VerticalAlignment="Center" Command="{Binding StartOverCommand}"
+                                Content="Start Over" DockPanel.Dock="Right"
+                                Style="{DynamicResource BtnGhost}" ToolTip="F2" />
+
+                        <StackPanel HorizontalAlignment="Left" VerticalAlignment="Center" Orientation="Horizontal">
+
+                            <!--  Step 1: Identify  -->
+                            <StackPanel Orientation="Horizontal">
+                                <Border Width="24" Height="24" CornerRadius="12">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="{DynamicResource StepInactive}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="1">
+                                                    <Setter Property="Background" Value="{DynamicResource StepActive}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="2">
+                                                    <Setter Property="Background" Value="{DynamicResource StepComplete}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="3">
+                                                    <Setter Property="Background" Value="{DynamicResource StepComplete}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="4">
+                                                    <Setter Property="Background" Value="{DynamicResource StepComplete}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               FontSize="11" FontWeight="Bold" Foreground="White" Text="1" />
+                                </Border>
+                                <TextBlock Margin="4,0,0,0" VerticalAlignment="Center" FontSize="11">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{DynamicResource TextStepInactive}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="1">
+                                                    <Setter Property="Foreground" Value="{DynamicResource TextStepActive}" />
+                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="2">
+                                                    <Setter Property="Foreground" Value="{DynamicResource TextStepDone}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="3">
+                                                    <Setter Property="Foreground" Value="{DynamicResource TextStepDone}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="4">
+                                                    <Setter Property="Foreground" Value="{DynamicResource TextStepDone}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                    <Run Text="Identify" />
                                 </TextBlock>
                             </StackPanel>
 
-                            <!--  Biometric Update Warning  -->
-                            <Border
-                                Margin="0,6,0,0"
-                                Padding="10,8"
-                                Background="{DynamicResource BgWarning}"
-                                CornerRadius="4"
-                                Visibility="{Binding NeedsBiometricUpdate, Converter={x:Static local:Converters.BoolToVis}}">
-                                <TextBlock
-                                    FontSize="12"
-                                    Foreground="{DynamicResource TextWarning}"
-                                    TextWrapping="Wrap">
-                                    <Run FontWeight="SemiBold" Text="Biometric update recommended." />
-                                    <Run Text="Patient found via name search. Face verification is recommended." />
-                                </TextBlock>
-                            </Border>
-
-                            <!--  Action Buttons  -->
-                            <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
-                                <Button
-                                    Margin="0,0,6,0"
-                                    Padding="12,6"
-                                    Command="{Binding GoToVerifyCommand}"
-                                    Content="Verify Face"
-                                    FontSize="12"
-                                    Style="{DynamicResource BtnPrimary}" />
-                                <Button
-                                    Margin="0,0,6,0"
-                                    Padding="12,6"
-                                    Command="{Binding GoToVisitCommand}"
-                                    Content="Log Visit"
-                                    FontSize="12"
-                                    Style="{DynamicResource BtnBase}" />
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-
-                    <!--  ═══════════════════════════════  -->
-                    <!--  CARD 3: VERIFY (1:1)  -->
-                    <!--  ═══════════════════════════════  -->
-                    <Border
-                        Margin="0,0,0,8"
-                        Style="{DynamicResource Card}"
-                        Visibility="{Binding ShowVerifySection, Converter={x:Static local:Converters.BoolToVis}}">
-                        <StackPanel>
-                            <TextBlock
-                                Margin="0,0,0,10"
-                                Style="{DynamicResource SectionHeader}"
-                                Text="VERIFY" />
-
-                            <!--  Verify Button  -->
-                            <Button
-                                Margin="0,0,0,8"
-                                HorizontalAlignment="Stretch"
-                                Command="{Binding VerifyPatientCommand}"
-                                Content="Verify Face (1:1)"
-                                IsEnabled="{Binding IsCameraRunning}"
-                                Style="{DynamicResource BtnPrimary}" />
-
-                            <!--  Verify Result Badge  -->
-                            <Border Margin="0,0,0,8" Visibility="{Binding HasVerifyResult, Converter={x:Static local:Converters.BoolToVis}}">
-                                <StackPanel>
-                                    <Border
-                                        Padding="10,4"
-                                        HorizontalAlignment="Left"
-                                        Background="{Binding VerifyResultColor}"
-                                        CornerRadius="3">
-                                        <TextBlock
-                                            FontSize="11"
-                                            FontWeight="Bold"
-                                            Foreground="#FFFFFF"
-                                            Text="{Binding VerifyResultHeader}" />
-                                    </Border>
-                                    <TextBlock
-                                        Margin="0,4,0,0"
-                                        FontSize="12"
-                                        Foreground="{DynamicResource TextSecondary}"
-                                        Text="{Binding VerifyResultText}"
-                                        TextWrapping="Wrap"
-                                        Visibility="{Binding VerifyResultText, Converter={x:Static local:Converters.NonEmptyToVisible}}" />
-                                </StackPanel>
-                            </Border>
-
-                            <!--  Facial Change Checkbox  -->
-                            <CheckBox
-                                Margin="0,0,0,4"
-                                FontSize="12"
-                                Foreground="{DynamicResource TextPrimary}"
-                                IsChecked="{Binding FacialChangeChecked}">
-                                <TextBlock Text="Facial Change (trauma, surgery, aging)" TextWrapping="Wrap" />
-                            </CheckBox>
-                            <TextBox
-                                Margin="20,0,0,8"
-                                Style="{DynamicResource InputBox}"
-                                Text="{Binding FacialChangeReason, UpdateSourceTrigger=PropertyChanged}"
-                                Visibility="{Binding FacialChangeChecked, Converter={x:Static local:Converters.BoolToVis}}" />
-
-                            <!--  Update Photo  -->
-                            <StackPanel Margin="0,0,0,4" Orientation="Horizontal">
-                                <Button
-                                    Padding="12,6"
-                                    Command="{Binding UpdatePhotoCommand}"
-                                    Content="Update Photo"
-                                    FontSize="12"
-                                    IsEnabled="{Binding IsCameraRunning}"
-                                    Style="{DynamicResource BtnBase}" />
-                                <TextBlock
-                                    Margin="8,0,0,0"
-                                    VerticalAlignment="Center"
-                                    FontSize="12"
-                                    Foreground="{DynamicResource TextSecondary}"
-                                    Text="{Binding PhotoUpdateStatus}"
-                                    Visibility="{Binding PhotoUpdateStatus, Converter={x:Static local:Converters.NonEmptyToVisible}}" />
-                            </StackPanel>
-
-                            <!--  Continue to Visit  -->
-                            <Button
-                                Margin="0,8,0,0"
-                                HorizontalAlignment="Stretch"
-                                Command="{Binding GoToVisitCommand}"
-                                Content="Continue to Visit"
-                                Style="{DynamicResource BtnPrimary}" />
-                        </StackPanel>
-                    </Border>
-
-                    <!--  ═══════════════════════════════  -->
-                    <!--  CARD 4: VISIT  -->
-                    <!--  ═══════════════════════════════  -->
-                    <Border
-                        Margin="0,0,0,8"
-                        Style="{DynamicResource Card}"
-                        Visibility="{Binding ShowVisitSection, Converter={x:Static local:Converters.BoolToVis}}">
-                        <StackPanel>
-                            <TextBlock
-                                Margin="0,0,0,10"
-                                Style="{DynamicResource SectionHeader}"
-                                Text="LOG VISIT" />
-
-                            <!--  Service Type  -->
-                            <TextBlock Style="{DynamicResource FieldLabel}" Text="Service Type *" />
-                            <ComboBox
-                                Margin="0,0,0,10"
-                                ItemsSource="{Binding ServiceTypes}"
-                                SelectedItem="{Binding VisitServiceType}" />
-
-                            <!--  Chief Complaint  -->
-                            <TextBlock Style="{DynamicResource FieldLabel}" Text="Chief Complaint" />
-                            <TextBox
-                                Height="60"
-                                Margin="0,0,0,10"
-                                VerticalContentAlignment="Top"
-                                AcceptsReturn="True"
-                                Style="{DynamicResource InputBox}"
-                                Text="{Binding VisitChiefComplaint, UpdateSourceTrigger=PropertyChanged}"
-                                TextWrapping="Wrap" />
-
-                            <!--  Log Visit Button  -->
-                            <Button
-                                Margin="0,0,0,6"
-                                HorizontalAlignment="Stretch"
-                                Command="{Binding LogVisitCommand}"
-                                Content="Log Visit"
-                                Style="{DynamicResource BtnPrimary}" />
-
-                            <!--  Success Message  -->
-                            <Border
-                                Padding="10,8"
-                                Background="{DynamicResource BgSuccess}"
-                                CornerRadius="4"
-                                Visibility="{Binding VisitLogged, Converter={x:Static local:Converters.BoolToVis}}">
-                                <TextBlock
-                                    FontSize="12"
-                                    FontWeight="SemiBold"
-                                    Foreground="{DynamicResource TextSuccess}"
-                                    Text="Visit logged successfully." />
-                            </Border>
-
-                            <!--  Print Routing Slip  -->
-                            <Button
-                                Margin="0,6,0,0"
-                                HorizontalAlignment="Stretch"
-                                Command="{Binding PrintRoutingSlipCommand}"
-                                Content="Print Routing Slip"
-                                Style="{DynamicResource BtnBase}"
-                                Visibility="{Binding VisitLogged, Converter={x:Static local:Converters.BoolToVis}}" />
-                        </StackPanel>
-                    </Border>
-
-                    <!--  ═══════════════════════════════  -->
-                    <!--  CARD 5: ACTIVITY LOG  -->
-                    <!--  ═══════════════════════════════  -->
-                    <Border Margin="0,0,0,8" Style="{DynamicResource Card}">
-                        <DockPanel>
-                            <DockPanel Margin="0,0,0,8" DockPanel.Dock="Top">
-                                <TextBlock
-                                    VerticalAlignment="Center"
-                                    DockPanel.Dock="Left"
-                                    Style="{DynamicResource SectionHeader}"
-                                    Text="ACTIVITY" />
-                                <Button
-                                    Command="{Binding ClearLogCommand}"
-                                    Content="Clear"
-                                    DockPanel.Dock="Right"
-                                    Style="{DynamicResource BtnSmall}" />
-                            </DockPanel>
-
-                            <ListBox
-                                MaxHeight="150"
-                                Background="Transparent"
-                                BorderThickness="0"
-                                FontFamily="Cascadia Code, Consolas, monospace"
-                                FontSize="11"
-                                Foreground="{DynamicResource TextSecondary}"
-                                ItemsSource="{Binding ActivityLog}"
-                                ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                                <ListBox.ItemContainerStyle>
-                                    <Style TargetType="ListBoxItem">
-                                        <Setter Property="Padding" Value="0,2" />
-                                        <Setter Property="Background" Value="Transparent" />
-                                        <Setter Property="BorderThickness" Value="0" />
-                                        <Setter Property="Focusable" Value="False" />
+                            <!--  Connector 1→2  -->
+                            <Border Width="16" Height="2" Margin="6,0" VerticalAlignment="Center">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{DynamicResource StepInactive}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="2">
+                                                <Setter Property="Background" Value="{DynamicResource StepActive}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="3">
+                                                <Setter Property="Background" Value="{DynamicResource StepConnectorDone}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="4">
+                                                <Setter Property="Background" Value="{DynamicResource StepConnectorDone}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
                                     </Style>
-                                </ListBox.ItemContainerStyle>
-                            </ListBox>
+                                </Border.Style>
+                            </Border>
+
+                            <!--  Step 2: Verify  -->
+                            <StackPanel Orientation="Horizontal">
+                                <Border Width="24" Height="24" CornerRadius="12">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="{DynamicResource StepInactive}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="2">
+                                                    <Setter Property="Background" Value="{DynamicResource StepActive}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="3">
+                                                    <Setter Property="Background" Value="{DynamicResource StepComplete}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="4">
+                                                    <Setter Property="Background" Value="{DynamicResource StepComplete}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               FontSize="11" FontWeight="Bold" Foreground="White" Text="2" />
+                                </Border>
+                                <TextBlock Margin="4,0,0,0" VerticalAlignment="Center" FontSize="11">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{DynamicResource TextStepInactive}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="2">
+                                                    <Setter Property="Foreground" Value="{DynamicResource TextStepActive}" />
+                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="3">
+                                                    <Setter Property="Foreground" Value="{DynamicResource TextStepDone}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="4">
+                                                    <Setter Property="Foreground" Value="{DynamicResource TextStepDone}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                    <Run Text="Verify" />
+                                </TextBlock>
+                            </StackPanel>
+
+                            <!--  Connector 2→3  -->
+                            <Border Width="16" Height="2" Margin="6,0" VerticalAlignment="Center">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{DynamicResource StepInactive}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="3">
+                                                <Setter Property="Background" Value="{DynamicResource StepActive}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="4">
+                                                <Setter Property="Background" Value="{DynamicResource StepConnectorDone}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                            </Border>
+
+                            <!--  Step 3: Enrol (conditional opacity)  -->
+                            <StackPanel Orientation="Horizontal">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Opacity" Value="1" />
+                                        <Style.Triggers>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding IsEnrolStepRequired}" Value="False" />
+                                                    <Condition Binding="{Binding CurrentWorkflowStep}" Value="1" />
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Opacity" Value="0.4" />
+                                            </MultiDataTrigger>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding IsEnrolStepRequired}" Value="False" />
+                                                    <Condition Binding="{Binding CurrentWorkflowStep}" Value="2" />
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Opacity" Value="0.4" />
+                                            </MultiDataTrigger>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding IsEnrolStepRequired}" Value="False" />
+                                                    <Condition Binding="{Binding CurrentWorkflowStep}" Value="4" />
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Opacity" Value="0.4" />
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <Border Width="24" Height="24" CornerRadius="12">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="{DynamicResource StepInactive}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="3">
+                                                    <Setter Property="Background" Value="{DynamicResource StepActive}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="4">
+                                                    <Setter Property="Background" Value="{DynamicResource StepComplete}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               FontSize="11" FontWeight="Bold" Foreground="White" Text="3" />
+                                </Border>
+                                <TextBlock Margin="4,0,0,0" VerticalAlignment="Center" FontSize="11">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{DynamicResource TextStepInactive}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="3">
+                                                    <Setter Property="Foreground" Value="{DynamicResource TextStepActive}" />
+                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="4">
+                                                    <Setter Property="Foreground" Value="{DynamicResource TextStepDone}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                    <Run Text="Enrol" />
+                                </TextBlock>
+                            </StackPanel>
+
+                            <!--  Connector 3→4  -->
+                            <Border Width="16" Height="2" Margin="6,0" VerticalAlignment="Center">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{DynamicResource StepInactive}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="4">
+                                                <Setter Property="Background" Value="{DynamicResource StepActive}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                            </Border>
+
+                            <!--  Step 4: Visit  -->
+                            <StackPanel Orientation="Horizontal">
+                                <Border Width="24" Height="24" CornerRadius="12">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="{DynamicResource StepInactive}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="4">
+                                                    <Setter Property="Background" Value="{DynamicResource StepActive}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               FontSize="11" FontWeight="Bold" Foreground="White" Text="4" />
+                                </Border>
+                                <TextBlock Margin="4,0,0,0" VerticalAlignment="Center" FontSize="11">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{DynamicResource TextStepInactive}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="4">
+                                                    <Setter Property="Foreground" Value="{DynamicResource TextStepActive}" />
+                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                    <Run Text="Visit" />
+                                </TextBlock>
+                            </StackPanel>
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
+
+                <!--  PATIENT BANNER (visible in steps 2, 3, 4)  -->
+                <Border Grid.Row="1" Margin="0,0,0,10" Padding="14,10"
+                        Background="{DynamicResource BgPatientBanner}" BorderBrush="{DynamicResource BorderPatientBanner}"
+                        BorderThickness="1" CornerRadius="8"
+                        Visibility="{Binding ShowPatientCard, Converter={x:Static local:Converters.BoolToVis}}">
+                    <DockPanel>
+                        <TextBlock VerticalAlignment="Center" DockPanel.Dock="Right"
+                                   Style="{DynamicResource MonoText}" Text="{Binding PatientIdentifyTiming}" />
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Margin="0,0,10,0" FontSize="14" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource AccentPrimary}" Text="{Binding PatientPid}"
+                                       Visibility="{Binding PatientPid, Converter={x:Static local:Converters.NonEmptyToVisible}}" />
+                            <TextBlock Margin="0,0,10,0" FontSize="14" FontWeight="Medium"
+                                       Foreground="{DynamicResource TextPrimary}" Text="{Binding PatientName}" />
+                            <TextBlock VerticalAlignment="Center" FontSize="13" Foreground="{DynamicResource TextSecondary}">
+                                <Run Text="{Binding PatientSex, Mode=OneWay}" />
+                                <Run Text="{Binding PatientAge, Mode=OneWay, StringFormat='  {0}'}" />
+                            </TextBlock>
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
+
+                <!--  ═══════════════════════════════════  -->
+                <!--  ACTIVE STEP CONTENT  -->
+                <!--  ═══════════════════════════════════  -->
+                <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <Grid>
+
+                        <!--  ═══════════════════════════════  -->
+                        <!--  STEP 1: IDENTIFY  -->
+                        <!--  ═══════════════════════════════  -->
+                        <Border Style="{DynamicResource CardElevated}"
+                                Visibility="{Binding CurrentWorkflowStep, Converter={x:Static local:Converters.StepEquals}, ConverterParameter=1}">
+                            <StackPanel>
+                                <TextBlock Margin="0,0,0,12" FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimary}" Text="Identify Patient" />
+
+                                <!--  1: Face Recognition  -->
+                                <StackPanel Margin="0,0,0,6" Orientation="Horizontal">
+                                    <Border Width="20" Height="20" Margin="0,0,8,0" Background="{DynamicResource AccentPrimary}" CornerRadius="10">
+                                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   FontSize="10" FontWeight="Bold" Foreground="White" Text="1" />
+                                    </Border>
+                                    <TextBlock VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextSecondary}" Text="FACE RECOGNITION" />
+                                </StackPanel>
+                                <Button Margin="0,0,0,16" HorizontalAlignment="Stretch" Command="{Binding IdentifyCommand}"
+                                        Content="Identify Patient (1:N)" IsEnabled="{Binding IsCameraRunning}"
+                                        Style="{DynamicResource BtnPrimary}" ToolTip="F5" />
+
+                                <!--  2: Biometric Search  -->
+                                <StackPanel Margin="0,0,0,6" Orientation="Horizontal">
+                                    <Border Width="20" Height="20" Margin="0,0,8,0" Background="{DynamicResource AccentPrimary}" CornerRadius="10">
+                                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   FontSize="10" FontWeight="Bold" Foreground="White" Text="2" />
+                                    </Border>
+                                    <TextBlock VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextSecondary}" Text="BIOMETRIC SEARCH" />
+                                </StackPanel>
+                                <Grid Margin="0,0,0,16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="6" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0" HorizontalAlignment="Stretch" Command="{Binding PhotoSearchCommand}"
+                                            Content="Search by Photo" Style="{DynamicResource BtnBase}" />
+                                    <Button Grid.Column="2" HorizontalAlignment="Stretch" Command="{Binding FingerprintSearchCommand}"
+                                            Content="Fingerprint" Style="{DynamicResource BtnBase}" />
+                                </Grid>
+
+                                <!--  3: Manual Search  -->
+                                <StackPanel Margin="0,0,0,6" Orientation="Horizontal">
+                                    <Border Width="20" Height="20" Margin="0,0,8,0" Background="{DynamicResource AccentPrimary}" CornerRadius="10">
+                                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   FontSize="10" FontWeight="Bold" Foreground="White" Text="3" />
+                                    </Border>
+                                    <TextBlock VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextSecondary}" Text="MANUAL SEARCH" />
+                                </StackPanel>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="6" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0" Style="{DynamicResource InputBox}"
+                                             Text="{Binding ManualSearchQuery, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Button Grid.Column="2" Padding="14,8" Command="{Binding ManualSearchCommand}"
+                                            Content="Search" Style="{DynamicResource BtnBase}" />
+                                </Grid>
+
+                                <!--  Manual Search Results  -->
+                                <ItemsControl ItemsSource="{Binding ManualSearchResults}"
+                                              Visibility="{Binding HasManualSearchResults, Converter={x:Static local:Converters.BoolToVis}}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Margin="0,0,0,4" Padding="10,8" Background="{DynamicResource BgSurfaceDim}" CornerRadius="6">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Orientation="Horizontal">
+                                                        <TextBlock Margin="0,0,8,0" FontSize="11" FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource AccentPrimary}" Text="{Binding IDCard}" />
+                                                        <TextBlock FontSize="12" FontWeight="Medium"
+                                                                   Foreground="{DynamicResource TextPrimary}" Text="{Binding Name}" />
+                                                    </StackPanel>
+                                                    <Button Grid.Column="1" VerticalAlignment="Center"
+                                                            Command="{Binding DataContext.SelectPatientCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            CommandParameter="{Binding}" Content="Select" Style="{DynamicResource BtnSmall}" />
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <!--  Alert: Biometric update required  -->
+                                <Border Background="{DynamicResource WarningBg}" BorderBrush="{DynamicResource WarningBorder}"
+                                        BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,8,0,0"
+                                        Visibility="{Binding NeedsBiometricUpdate, Converter={x:Static local:Converters.BoolToVis}}">
+                                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource WarningText}">
+                                        Biometric update required -- patient found via manual search.
+                                        Face + fingerprint capture will be required in the Enrol step.
+                                    </TextBlock>
+                                </Border>
+
+                                <!--  Alert: No match found  -->
+                                <Border Background="{DynamicResource InfoBg}" BorderBrush="{DynamicResource InfoBorder}"
+                                        BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,8,0,0"
+                                        Visibility="{Binding ShowNoMatchMessage, Converter={x:Static local:Converters.BoolToVis}}">
+                                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource InfoText}">
+                                        No match found. Proceed to Enrol (Step 3) for new patient registration.
+                                    </TextBlock>
+                                </Border>
+
+                                <!--  Identify Result Badge  -->
+                                <Border Margin="0,6,0,0"
+                                        Visibility="{Binding HasIdentifyResult, Converter={x:Static local:Converters.BoolToVis}}">
+                                    <StackPanel>
+                                        <DockPanel>
+                                            <Border Padding="10,5" Background="{Binding IdentifyResultColor}" CornerRadius="4" DockPanel.Dock="Left">
+                                                <TextBlock FontSize="11" FontWeight="Bold" Foreground="#FFFFFF" Text="{Binding IdentifyResultHeader}" />
+                                            </Border>
+                                            <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center" DockPanel.Dock="Right"
+                                                       Style="{DynamicResource MonoText}" Text="{Binding PatientIdentifyTiming}" />
+                                        </DockPanel>
+                                        <TextBlock Margin="0,4,0,0" FontSize="12" Foreground="{DynamicResource TextSecondary}"
+                                                   Text="{Binding IdentifyResultText}" TextWrapping="Wrap"
+                                                   Visibility="{Binding IdentifyResultText, Converter={x:Static local:Converters.NonEmptyToVisible}}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <!--  Enrol New (when unknown)  -->
+                                <Button Margin="0,10,0,0" HorizontalAlignment="Stretch" Command="{Binding EnrolNewCommand}"
+                                        Content="Enrol New Patient" Style="{DynamicResource BtnBase}"
+                                        Visibility="{Binding ShowEnrolNewOption, Converter={x:Static local:Converters.BoolToVis}}" />
+                            </StackPanel>
+                        </Border>
+
+                        <!--  ═══════════════════════════════  -->
+                        <!--  STEP 2: VERIFY  -->
+                        <!--  ═══════════════════════════════  -->
+                        <Border Style="{DynamicResource CardElevated}"
+                                Visibility="{Binding CurrentWorkflowStep, Converter={x:Static local:Converters.StepEquals}, ConverterParameter=2}">
+                            <StackPanel>
+                                <TextBlock Margin="0,0,0,12" FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimary}" Text="Verify Identity" />
+
+                                <!--  Patient Summary Card  -->
+                                <Border Margin="0,0,0,12" Padding="12,10" Background="{DynamicResource BgSurfaceDim}" CornerRadius="8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="44" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="44" Height="44" CornerRadius="22" Background="{DynamicResource AccentSurface}">
+                                            <TextBlock Text="{Binding PatientInitials}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       FontWeight="SemiBold" FontSize="14" Foreground="{DynamicResource AccentPrimary}" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding PatientName}" FontWeight="SemiBold" FontSize="13"
+                                                       Foreground="{DynamicResource TextPrimary}" />
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding PatientPid}" FontSize="12" Foreground="{DynamicResource TextSecondary}" />
+                                                <TextBlock Text=" · DOB " FontSize="12" Foreground="{DynamicResource TextSecondary}" />
+                                                <TextBlock Text="{Binding PatientDob}" FontSize="12" Foreground="{DynamicResource TextSecondary}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!--  Biometric Update Warning  -->
+                                <Border Margin="0,0,0,12" Padding="12,10" Background="{DynamicResource WarningBg}"
+                                        BorderBrush="{DynamicResource WarningBorder}" BorderThickness="1" CornerRadius="6"
+                                        Visibility="{Binding NeedsBiometricUpdate, Converter={x:Static local:Converters.BoolToVis}}">
+                                    <TextBlock FontSize="12" Foreground="{DynamicResource WarningText}" TextWrapping="Wrap">
+                                        <Run FontWeight="SemiBold" Text="Biometric update recommended." />
+                                        <Run Text="Patient found via manual search. Face verification is recommended." />
+                                    </TextBlock>
+                                </Border>
+
+                                <!--  Verify Face (1:1)  -->
+                                <Button Margin="0,0,0,10" HorizontalAlignment="Stretch" Command="{Binding VerifyPatientCommand}"
+                                        Content="Verify Face (1:1)" IsEnabled="{Binding IsCameraRunning}" Style="{DynamicResource BtnPrimary}" />
+
+                                <!--  Verify Result Badge  -->
+                                <Border Margin="0,0,0,10" Visibility="{Binding HasVerifyResult, Converter={x:Static local:Converters.BoolToVis}}">
+                                    <StackPanel>
+                                        <Border Padding="10,5" HorizontalAlignment="Left" Background="{Binding VerifyResultColor}" CornerRadius="4">
+                                            <TextBlock FontSize="11" FontWeight="Bold" Foreground="#FFFFFF" Text="{Binding VerifyResultHeader}" />
+                                        </Border>
+                                        <TextBlock Margin="0,4,0,0" FontSize="12" Foreground="{DynamicResource TextSecondary}"
+                                                   Text="{Binding VerifyResultText}" TextWrapping="Wrap"
+                                                   Visibility="{Binding VerifyResultText, Converter={x:Static local:Converters.NonEmptyToVisible}}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Margin="0,2,0,12" BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,1,0,0" />
+
+                                <!--  Facial Change  -->
+                                <CheckBox Margin="0,0,0,6" FontSize="12" Foreground="{DynamicResource TextPrimary}" IsChecked="{Binding FacialChangeChecked}">
+                                    <TextBlock Text="Facial Change (trauma, surgery, aging)" TextWrapping="Wrap" />
+                                </CheckBox>
+                                <TextBox Margin="28,0,0,10" Style="{DynamicResource InputBox}"
+                                         Text="{Binding FacialChangeReason, UpdateSourceTrigger=PropertyChanged}"
+                                         Visibility="{Binding FacialChangeChecked, Converter={x:Static local:Converters.BoolToVis}}" />
+
+                                <!--  Update Photo  -->
+                                <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
+                                    <Button Padding="12,6" Command="{Binding UpdatePhotoCommand}" Content="Update Photo"
+                                            FontSize="12" IsEnabled="{Binding IsCameraRunning}" Style="{DynamicResource BtnBase}" />
+                                    <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" FontSize="12"
+                                               Foreground="{DynamicResource TextSecondary}" Text="{Binding PhotoUpdateStatus}"
+                                               Visibility="{Binding PhotoUpdateStatus, Converter={x:Static local:Converters.NonEmptyToVisible}}" />
+                                </StackPanel>
+
+                                <!--  ID Card Verification  -->
+                                <CheckBox Margin="0,0,0,10" FontSize="12" Content="ID card matches system records"
+                                          IsChecked="{Binding IdCardVerified, Mode=TwoWay}" />
+
+                                <!--  Navigation  -->
+                                <Border BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="6" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0" HorizontalAlignment="Stretch" Command="{Binding GoToVisitCommand}"
+                                                Content="Skip to Visit" Style="{DynamicResource BtnBase}" />
+                                        <Button Grid.Column="2" HorizontalAlignment="Stretch" Command="{Binding ContinueFromVerifyCommand}"
+                                                Content="Continue" Style="{DynamicResource BtnPrimary}" />
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                        <!--  ═══════════════════════════════  -->
+                        <!--  STEP 3: ENROL  -->
+                        <!--  ═══════════════════════════════  -->
+                        <Border Style="{DynamicResource CardElevated}"
+                                Visibility="{Binding CurrentWorkflowStep, Converter={x:Static local:Converters.StepEquals}, ConverterParameter=3}">
+                            <StackPanel>
+                                <TextBlock Margin="0,0,0,14" FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimary}" Text="Enrol" />
+
+                                <!--  1: e-Consent  -->
+                                <StackPanel Margin="0,0,0,6" Orientation="Horizontal">
+                                    <Border Width="20" Height="20" Margin="0,0,8,0" Background="{DynamicResource AccentPrimary}" CornerRadius="10">
+                                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   FontSize="10" FontWeight="Bold" Foreground="White" Text="1" />
+                                    </Border>
+                                    <TextBlock VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextSecondary}" Text="E-CONSENT" />
+                                </StackPanel>
+                                <Border Margin="0,0,0,8" Padding="12,10" Background="{DynamicResource BgSurfaceDim}" CornerRadius="6">
+                                    <StackPanel>
+                                        <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"
+                                                   Text="Patient safety consent" Margin="0,0,0,4" />
+                                        <TextBlock FontSize="12" Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap">
+                                            Biometric data is used to accurately identify patients and prevent medical errors.
+                                            Data is stored securely and never shared externally.
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Border>
+                                <CheckBox Margin="0,0,0,12" FontSize="12" Content="Patient gives informed consent"
+                                          IsChecked="{Binding ConsentGiven, Mode=TwoWay}" />
+
+                                <Border Margin="0,0,0,12" BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,1,0,0" />
+
+                                <!--  2: Biometric Capture  -->
+                                <StackPanel Margin="0,0,0,6" Orientation="Horizontal">
+                                    <Border Width="20" Height="20" Margin="0,0,8,0" Background="{DynamicResource AccentPrimary}" CornerRadius="10">
+                                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   FontSize="10" FontWeight="Bold" Foreground="White" Text="2" />
+                                    </Border>
+                                    <TextBlock VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextSecondary}" Text="BIOMETRIC CAPTURE" />
+                                </StackPanel>
+
+                                <TextBlock FontSize="12" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,4" Text="Face -- master template" />
+                                <Border Height="80" Margin="0,0,0,12" CornerRadius="6"
+                                        BorderBrush="{DynamicResource TextTertiary}" BorderThickness="1"
+                                        Background="Transparent">
+                                    <TextBlock Text="Click to capture face photo" FontSize="12"
+                                               Foreground="{DynamicResource TextTertiary}"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+
+                                <TextBlock FontSize="12" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,4" Text="Fingerprints -- primary fingers" />
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="6" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="6" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Border Grid.Row="0" Grid.Column="0" Height="48" CornerRadius="6"
+                                            BorderBrush="{DynamicResource TextTertiary}" BorderThickness="1" Background="Transparent">
+                                        <TextBlock Text="Left index" FontSize="12" Foreground="{DynamicResource TextTertiary}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <Border Grid.Row="0" Grid.Column="2" Height="48" CornerRadius="6"
+                                            BorderBrush="{DynamicResource TextTertiary}" BorderThickness="1" Background="Transparent">
+                                        <TextBlock Text="Right index" FontSize="12" Foreground="{DynamicResource TextTertiary}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <Border Grid.Row="2" Grid.Column="0" Height="48" CornerRadius="6"
+                                            BorderBrush="{DynamicResource TextTertiary}" BorderThickness="1" Background="Transparent">
+                                        <TextBlock Text="Left thumb" FontSize="12" Foreground="{DynamicResource TextTertiary}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <Border Grid.Row="2" Grid.Column="2" Height="48" CornerRadius="6"
+                                            BorderBrush="{DynamicResource TextTertiary}" BorderThickness="1" Background="Transparent">
+                                        <TextBlock Text="Right thumb" FontSize="12" Foreground="{DynamicResource TextTertiary}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                </Grid>
+
+                                <Border Margin="0,0,0,12" BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,1,0,0" />
+
+                                <!--  3: Deduplication Check  -->
+                                <StackPanel Margin="0,0,0,6" Orientation="Horizontal">
+                                    <Border Width="20" Height="20" Margin="0,0,8,0" Background="{DynamicResource AccentPrimary}" CornerRadius="10">
+                                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   FontSize="10" FontWeight="Bold" Foreground="White" Text="3" />
+                                    </Border>
+                                    <TextBlock VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextSecondary}" Text="DEDUPLICATION CHECK" />
+                                </StackPanel>
+                                <Border Background="{DynamicResource InfoBg}" BorderBrush="{DynamicResource InfoBorder}"
+                                        BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,14">
+                                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource InfoText}">
+                                        System will re-check DB by name/surname before saving to prevent duplicate PIDs.
+                                    </TextBlock>
+                                </Border>
+
+                                <!--  Save & Continue  -->
+                                <Button HorizontalAlignment="Stretch" Command="{Binding GoToVisitCommand}"
+                                        Content="Save &amp; continue" Style="{DynamicResource BtnPrimary}" />
+                            </StackPanel>
+                        </Border>
+
+                        <!--  ═══════════════════════════════  -->
+                        <!--  STEP 4: VISIT & ROUTING  -->
+                        <!--  ═══════════════════════════════  -->
+                        <Border Style="{DynamicResource CardElevated}"
+                                Visibility="{Binding CurrentWorkflowStep, Converter={x:Static local:Converters.StepEquals}, ConverterParameter=4}">
+                            <StackPanel>
+                                <TextBlock Margin="0,0,0,12" FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimary}" Text="Visit &amp; Routing" />
+
+                                <TextBlock Style="{DynamicResource FieldLabel}" Text="Service Type *" />
+                                <ComboBox Margin="0,0,0,12" ItemsSource="{Binding ServiceTypes}" SelectedItem="{Binding VisitServiceType}" />
+
+                                <TextBlock Style="{DynamicResource FieldLabel}" Text="Chief Complaint" />
+                                <TextBox Height="60" Margin="0,0,0,14" VerticalContentAlignment="Top" AcceptsReturn="True"
+                                         Style="{DynamicResource InputBox}" Text="{Binding VisitChiefComplaint, UpdateSourceTrigger=PropertyChanged}"
+                                         TextWrapping="Wrap" />
+
+                                <Button Margin="0,0,0,8" HorizontalAlignment="Stretch" Command="{Binding LogVisitCommand}"
+                                        Content="Log Visit" Style="{DynamicResource BtnPrimary}" />
+
+                                <Border Margin="0,0,0,8" Padding="12,10" Background="{DynamicResource SuccessBg}"
+                                        BorderBrush="{DynamicResource SuccessBorder}" BorderThickness="1" CornerRadius="6"
+                                        Visibility="{Binding VisitLogged, Converter={x:Static local:Converters.BoolToVis}}">
+                                    <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource SuccessText}"
+                                               Text="Visit logged successfully." />
+                                </Border>
+
+                                <Button HorizontalAlignment="Stretch" Command="{Binding PrintRoutingSlipCommand}"
+                                        Content="Print Routing Slip" Style="{DynamicResource BtnBase}"
+                                        Visibility="{Binding VisitLogged, Converter={x:Static local:Converters.BoolToVis}}" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </ScrollViewer>
+
+                <!--  ACTIVITY LOG  -->
+                <Border Grid.Row="3" Margin="0,10,0,0" Padding="12,10"
+                        Background="{DynamicResource BgSurface}" BorderBrush="{DynamicResource BorderDefault}"
+                        BorderThickness="1" CornerRadius="10">
+                    <DockPanel>
+                        <DockPanel Margin="0,0,0,6" DockPanel.Dock="Top">
+                            <TextBlock VerticalAlignment="Center" DockPanel.Dock="Left" FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextSecondary}" Text="ACTIVITY" />
+                            <Button Command="{Binding ClearLogCommand}" Content="Clear" DockPanel.Dock="Right"
+                                    Style="{DynamicResource BtnGhost}" />
                         </DockPanel>
-                    </Border>
-
-                    <!--  Start Over  -->
-                    <Button
-                        Margin="0,0,0,8"
-                        HorizontalAlignment="Right"
-                        Command="{Binding StartOverCommand}"
-                        Content="Start Over"
-                        Style="{DynamicResource BtnSmall}" />
-
-                </StackPanel>
-            </ScrollViewer>
+                        <ListBox MaxHeight="120" Background="Transparent" BorderThickness="0"
+                                 FontFamily="Cascadia Code, Consolas, monospace" FontSize="11"
+                                 Foreground="{DynamicResource TextSecondary}" ItemsSource="{Binding ActivityLog}"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Padding" Value="0,2" />
+                                    <Setter Property="Background" Value="Transparent" />
+                                    <Setter Property="BorderThickness" Value="0" />
+                                    <Setter Property="Focusable" Value="False" />
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                        </ListBox>
+                    </DockPanel>
+                </Border>
+            </Grid>
         </Grid>
 
-        <!--  ══════════════════════════════════════  -->
         <!--  STATUS BAR  -->
-        <!--  ══════════════════════════════════════  -->
-        <Border
-            Grid.Row="2"
-            Padding="16,8"
-            Background="{DynamicResource BgSurfaceDim}"
-            BorderBrush="{DynamicResource BorderLight}"
-            BorderThickness="0,1,0,0">
+        <Border Grid.Row="2" Padding="16,8" Background="{DynamicResource BgSurfaceDim}"
+                BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,1,0,0">
             <DockPanel>
-                <TextBlock
-                    DockPanel.Dock="Left"
-                    Style="{DynamicResource CaptionText}"
-                    Text="{Binding StatusText}" />
-                <TextBlock
-                    HorizontalAlignment="Right"
-                    DockPanel.Dock="Right"
-                    Style="{DynamicResource MonoText}"
-                    Text="{Binding TimingText}" />
+                <TextBlock DockPanel.Dock="Left" Style="{DynamicResource CaptionText}" Text="{Binding StatusText}" />
+                <StackPanel HorizontalAlignment="Right" DockPanel.Dock="Right" Orientation="Horizontal">
+                    <TextBlock Margin="0,0,20,0" Style="{DynamicResource MonoText}" Text="{Binding LivenessText}" />
+                    <TextBlock Style="{DynamicResource MonoText}" Text="{Binding TimingText}" />
+                </StackPanel>
             </DockPanel>
         </Border>
     </Grid>

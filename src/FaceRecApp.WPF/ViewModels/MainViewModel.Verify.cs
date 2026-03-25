@@ -9,7 +9,7 @@ public partial class MainViewModel
     [RelayCommand]
     private void GoToVerify()
     {
-        ShowVerifySection = true; HasVerifyResult = false; FacialChangeChecked = false;
+        HasVerifyResult = false; FacialChangeChecked = false;
         FacialChangeReason = ""; PhotoUpdateStatus = "";
     }
 

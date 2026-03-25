@@ -46,6 +46,32 @@
     <SolidColorBrush x:Key="BtnDefaultHover" Color="#E2E8F0" />
     <SolidColorBrush x:Key="BtnDefaultPress" Color="#CBD5E1" />
 
+    <!--  Patient banner  -->
+    <SolidColorBrush x:Key="BgPatientBanner" Color="#EFF6FF" />
+    <SolidColorBrush x:Key="BorderPatientBanner" Color="#BFDBFE" />
+
+    <!--  Workflow  -->
+    <SolidColorBrush x:Key="StepConnectorDone" Color="#86EFAC" />
+    <SolidColorBrush x:Key="TextStepActive" Color="#2563EB" />
+    <SolidColorBrush x:Key="TextStepDone" Color="#16A34A" />
+    <SolidColorBrush x:Key="TextStepInactive" Color="#94A3B8" />
+
+    <!--  Semantic alerts (bordered cards)  -->
+    <SolidColorBrush x:Key="WarningBg" Color="#FEF3C7" />
+    <SolidColorBrush x:Key="WarningBorder" Color="#F59E0B" />
+    <SolidColorBrush x:Key="WarningText" Color="#92400E" />
+    <SolidColorBrush x:Key="InfoBg" Color="#DBEAFE" />
+    <SolidColorBrush x:Key="InfoBorder" Color="#3B82F6" />
+    <SolidColorBrush x:Key="InfoText" Color="#1E40AF" />
+    <SolidColorBrush x:Key="SuccessBg" Color="#D1FAE5" />
+    <SolidColorBrush x:Key="SuccessBorder" Color="#10B981" />
+    <SolidColorBrush x:Key="SuccessText" Color="#065F46" />
+    <SolidColorBrush x:Key="AccentSurface" Color="#EFF6FF" />
+    <SolidColorBrush x:Key="TextTertiary" Color="#CBD5E1" />
+
+    <!--  Elevation / shadow  -->
+    <Color x:Key="ShadowColor">#000000</Color>
+
     <!--  ComboBox dark  -->
     <SolidColorBrush x:Key="ComboDarkBg" Color="#1E293B" />
     <SolidColorBrush x:Key="ComboDarkBgHover" Color="#334155" />

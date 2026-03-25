@@ -42,8 +42,8 @@ public partial class MainViewModel
                     var person = result.Recognition.Patient;
                     IdentifyResultHeader = result.Recognition.IsHighConfidence ? "IDENTIFIED (HIGH)" : "IDENTIFIED";
                     IdentifyResultColor = "#5B7F62"; IdentifyResultText = result.Recognition.SimilarityText;
-                    HasIdentifyResult = true; ShowEnrolNewOption = false;
-                    SetSelectedPatient(person, "face"); NeedsBiometricUpdate = false;
+                    HasIdentifyResult = true; ShowEnrolNewOption = false; ShowNoMatchMessage = false;
+                    SetSelectedPatient(person, "face"); NeedsBiometricUpdate = false; IsEnrolStepRequired = false;
                     StatusText = $"Identified: {person.FullName} ({result.Recognition.SimilarityText})";
                     AddLog($"Identified: {person.IDCard} {person.FullName} ({result.Recognition.SimilarityText})");
                 }
@@ -53,6 +53,7 @@ public partial class MainViewModel
                     IdentifyResultHeader = "UNKNOWN"; IdentifyResultColor = "#C49A52";
                     IdentifyResultText = "Face not enrolled in the system.";
                     HasIdentifyResult = true; ShowEnrolNewOption = true; ShowPatientCard = false;
+                    ShowNoMatchMessage = true; IsEnrolStepRequired = true;
                     StatusText = "Face not recognized.";
                     AddLog($"Identify: unknown face ({result.Recognition?.SimilarityText ?? "N/A"})");
                 }
@@ -101,7 +102,8 @@ public partial class MainViewModel
             if (person == null) { StatusText = $"Patient {summary.IDCard} not found."; return; }
             _dispatcher.Invoke(() =>
             {
-                SetSelectedPatient(person, "manual"); NeedsBiometricUpdate = true; HasManualSearchResults = false;
+                SetSelectedPatient(person, "manual"); NeedsBiometricUpdate = true; IsEnrolStepRequired = true;
+                HasManualSearchResults = false; ShowNoMatchMessage = false;
                 StatusText = $"Selected: {person.FullName} ({person.IDCard})";
                 AddLog($"Selected (manual): {person.IDCard} {person.FullName}");
             });
@@ -137,8 +139,8 @@ public partial class MainViewModel
                     var person = result.Recognition.Patient;
                     IdentifyResultHeader = "IDENTIFIED (PHOTO)"; IdentifyResultColor = "#5B7F62";
                     IdentifyResultText = result.Recognition.SimilarityText;
-                    HasIdentifyResult = true; ShowEnrolNewOption = false;
-                    SetSelectedPatient(person, "photo"); NeedsBiometricUpdate = true;
+                    HasIdentifyResult = true; ShowEnrolNewOption = false; ShowNoMatchMessage = false;
+                    SetSelectedPatient(person, "photo"); NeedsBiometricUpdate = true; IsEnrolStepRequired = false;
                     StatusText = $"Identified from photo: {person.FullName}";
                     AddLog($"Photo match: {person.IDCard} {person.FullName} ({result.Recognition.SimilarityText})");
                 }
@@ -147,6 +149,7 @@ public partial class MainViewModel
                     _selectedPatient = null; IdentifyResultHeader = "UNKNOWN"; IdentifyResultColor = "#C49A52";
                     IdentifyResultText = "No match found for this photo.";
                     HasIdentifyResult = true; ShowEnrolNewOption = true; ShowPatientCard = false;
+                    ShowNoMatchMessage = true; IsEnrolStepRequired = true;
                     StatusText = "Photo not recognized."; AddLog("Photo search: no match");
                 }
             });
@@ -199,6 +202,7 @@ public partial class MainViewModel
                 IdentifyResultHeader = "UNKNOWN"; IdentifyResultColor = "#C49A52";
                 IdentifyResultText = "Fingerprint not enrolled in the system.";
                 HasIdentifyResult = true; ShowEnrolNewOption = true; ShowPatientCard = false;
+                ShowNoMatchMessage = true; IsEnrolStepRequired = true;
                 StatusText = "Fingerprint not recognized."; AddLog("Fingerprint search: no match");
             }
         });
@@ -214,8 +218,8 @@ public partial class MainViewModel
             {
                 if (person == null) { IdentifyResultHeader = "ERROR"; IdentifyResultColor = "#B85C56"; IdentifyResultText = "Matched fingerprint but patient record not found."; HasIdentifyResult = true; StatusText = "Fingerprint matched but patient not found."; AddLog($"Fingerprint match error: PID={pid} not found"); return; }
                 IdentifyResultHeader = "IDENTIFIED (FINGERPRINT)"; IdentifyResultColor = "#5B7F62";
-                IdentifyResultText = $"Score: {score}"; HasIdentifyResult = true; ShowEnrolNewOption = false;
-                SetSelectedPatient(person, "fingerprint"); NeedsBiometricUpdate = false;
+                IdentifyResultText = $"Score: {score}"; HasIdentifyResult = true; ShowEnrolNewOption = false; ShowNoMatchMessage = false;
+                SetSelectedPatient(person, "fingerprint"); NeedsBiometricUpdate = false; IsEnrolStepRequired = false;
                 StatusText = $"Identified by fingerprint: {person.FullName}";
                 AddLog($"Fingerprint match: {person.IDCard} {person.FullName} (score={score})");
             });
@@ -262,7 +266,10 @@ public partial class MainViewModel
     [RelayCommand]
     private void StartOver()
     {
+        CurrentWorkflowStep = 1;
         _selectedPatient = null; IdentificationMethod = ""; NeedsBiometricUpdate = false; IsBusy = false; IsFingerprintListening = false;
+        IsEnrolStepRequired = false; ShowNoMatchMessage = false;
+        ResetEnrolState();
         try { var scanner = App.Services.GetRequiredService<FingerprintService>(); scanner.FingerprintCaptured -= OnFingerprintForSearch; } catch { }
 
         IdentifyResultHeader = ""; IdentifyResultColor = "#A8A29E"; IdentifyResultText = "";
@@ -270,12 +277,13 @@ public partial class MainViewModel
         HasManualSearchResults = false; ShowEnrolNewOption = false;
 
         ShowPatientCard = false; PatientPid = ""; PatientName = ""; PatientSex = ""; PatientAge = ""; PatientIdentifyTiming = "";
+        PatientInitials = ""; PatientDob = "";
 
-        ShowVerifySection = false; VerifyResultHeader = ""; VerifyResultColor = "#A8A29E";
+        VerifyResultHeader = ""; VerifyResultColor = "#A8A29E";
         VerifyResultText = ""; HasVerifyResult = false; FacialChangeChecked = false;
-        FacialChangeReason = ""; PhotoUpdateStatus = "";
+        FacialChangeReason = ""; PhotoUpdateStatus = ""; IdCardVerified = false;
 
-        ShowVisitSection = false; VisitServiceType = ""; VisitChiefComplaint = ""; VisitLogged = false;
+        VisitServiceType = ""; VisitChiefComplaint = ""; VisitLogged = false;
 
         StatusText = "Ready. Click 'Start Camera' to begin."; AddLog("Workflow reset");
     }

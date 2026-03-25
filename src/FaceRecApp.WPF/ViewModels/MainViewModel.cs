@@ -21,6 +21,7 @@ namespace FaceRecApp.WPF.ViewModels;
 ///   MainViewModel.Camera.cs  — camera control, frame handling, pipeline results
 ///   MainViewModel.Identify.cs — identify, searches, navigation commands
 ///   MainViewModel.Verify.cs  — verify (1:1), photo update
+///   MainViewModel.Enrol.cs   — enrol step commands + form properties
 ///   MainViewModel.Visit.cs   — visit logging, workflow helpers, theme toggle
 /// </summary>
 public partial class MainViewModel : ObservableObject, IDisposable
@@ -51,6 +52,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private CameraDeviceInfo? _selectedCamera;
 
     // ── Clinical Workflow State ──
+    // Step 1 = Identify, Step 2 = Verify, Step 3 = Enrol, Step 4 = Visit
+
+    [ObservableProperty] private int _currentWorkflowStep = 1;
+    [ObservableProperty] private bool _isEnrolStepRequired;
 
     private Patient? _selectedPatient;
     [ObservableProperty] private string _identificationMethod = "";
@@ -68,6 +73,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private ObservableCollection<PatientSummary> _manualSearchResults = new();
     [ObservableProperty] private bool _hasManualSearchResults;
     [ObservableProperty] private bool _showEnrolNewOption;
+    [ObservableProperty] private bool _showNoMatchMessage;
 
     // ── Patient Card ──
     [ObservableProperty] private bool _showPatientCard;
@@ -76,9 +82,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _patientSex = "";
     [ObservableProperty] private string _patientAge = "";
     [ObservableProperty] private string _patientIdentifyTiming = "";
+    [ObservableProperty] private string _patientInitials = "";
+    [ObservableProperty] private string _patientDob = "";
 
     // ── Step 2: Verify ──
-    [ObservableProperty] private bool _showVerifySection;
     [ObservableProperty] private string _verifyResultHeader = "";
     [ObservableProperty] private string _verifyResultColor = "#A8A29E";
     [ObservableProperty] private string _verifyResultText = "";
@@ -86,9 +93,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _facialChangeChecked;
     [ObservableProperty] private string _facialChangeReason = "";
     [ObservableProperty] private string _photoUpdateStatus = "";
+    [ObservableProperty] private bool _idCardVerified;
 
     // ── Step 4: Visit ──
-    [ObservableProperty] private bool _showVisitSection;
     [ObservableProperty] private string _visitServiceType = "";
     [ObservableProperty] private string _visitChiefComplaint = "";
     [ObservableProperty] private bool _visitLogged;

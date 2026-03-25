@@ -16,6 +16,7 @@ public static class Converters
     public static readonly IValueConverter BoolToVis = new BoolToVisibilityConverter();
     public static readonly IValueConverter NullToVis = new NullToVisibilityConverter();
     public static readonly IValueConverter NonEmptyToVisible = new NonEmptyStringToVisibilityConverter();
+    public static readonly IValueConverter StepEquals = new IntEqualsToVisibilityConverter();
 }
 
 /// <summary>
@@ -101,6 +102,23 @@ public class NonEmptyStringToVisibilityConverter : IValueConverter
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
         return value is string s && !string.IsNullOrEmpty(s) ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotImplementedException();
+}
+
+/// <summary>
+/// Compares int value to ConverterParameter (string-parsed int).
+/// Equal = Visible, otherwise Collapsed. Used for workflow step visibility.
+/// </summary>
+public class IntEqualsToVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is int current && parameter is string p && int.TryParse(p, out int target))
+            return current == target ? Visibility.Visible : Visibility.Collapsed;
+        return Visibility.Collapsed;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
