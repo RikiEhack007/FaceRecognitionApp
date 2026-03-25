@@ -41,7 +41,8 @@ GO
 
 -- Rebuild fragmented indexes
 ALTER INDEX ALL ON Patients REBUILD;
-ALTER INDEX ALL ON Biometrics REBUILD;
+ALTER INDEX ALL ON FaceEmbeddings REBUILD;
+ALTER INDEX ALL ON FingerprintTemplates REBUILD;
 ALTER INDEX ALL ON Visits REBUILD;
 ALTER INDEX ALL ON RecognitionLogs REBUILD;
 
@@ -50,7 +51,8 @@ GO
 
 -- Update statistics for query optimizer
 UPDATE STATISTICS Patients;
-UPDATE STATISTICS Biometrics;
+UPDATE STATISTICS FaceEmbeddings;
+UPDATE STATISTICS FingerprintTemplates;
 UPDATE STATISTICS Visits;
 UPDATE STATISTICS RecognitionLogs;
 
@@ -102,8 +104,8 @@ SELECT
     CAST(COUNT(*) * 2048.0 / 1024 / 1024 AS DECIMAL(10,2)) AS [Estimated Vector Storage (MB)],
     CAST(50 * 1024 - (COUNT(*) * 2048.0 / 1024 / 1024) AS DECIMAL(10,2)) AS [Remaining Capacity (MB)],
     CAST(CAST(COUNT(*) * 2048.0 / 1024 / 1024 AS FLOAT) / (50 * 1024) * 100 AS DECIMAL(5,2)) AS [Usage %]
-FROM Biometrics
-WHERE BiometricType = 'Face' AND Embedding IS NOT NULL;
+FROM FaceEmbeddings
+WHERE Embedding IS NOT NULL;
 
 PRINT 'Database health report complete';
 GO

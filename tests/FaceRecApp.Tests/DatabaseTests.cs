@@ -12,15 +12,9 @@ namespace FaceRecApp.Tests;
 /// NOTE: These tests require a running SQL Server 2025 instance.
 /// They use InMemory database by default (vector operations won't work),
 /// but can be switched to real SQL Server for full integration testing.
-///
-/// To run with real SQL Server:
-///   1. Set USE_REAL_DB = true below
-///   2. Update the connection string
-///   3. Ensure SQL Server 2025 Express is running
 /// </summary>
 public class DatabaseTests : IDisposable
 {
-    // Set to true to test against real SQL Server (requires SQL Server 2025)
     private const bool USE_REAL_DB = false;
 
     private const string TEST_CONNECTION_STRING =
@@ -32,23 +26,20 @@ public class DatabaseTests : IDisposable
 
     public DatabaseTests()
     {
-#pragma warning disable CS0162 // Unreachable code — USE_REAL_DB is a const toggle
+#pragma warning disable CS0162
         if (USE_REAL_DB)
         {
-            // Real SQL Server — full vector support
             var options = new DbContextOptionsBuilder<FaceDbContext>()
                 .UseSqlServer(TEST_CONNECTION_STRING, sql => sql.UseVectorSearch())
                 .Options;
 
             _dbFactory = new TestDbContextFactory(options);
 
-            // Ensure test database exists
             using var db = _dbFactory.CreateDbContext();
             db.Database.EnsureCreated();
         }
         else
         {
-            // InMemory — basic CRUD only, no vector operations
             var options = new DbContextOptionsBuilder<FaceDbContext>()
                 .UseInMemoryDatabase(databaseName: $"TestDb_{Guid.NewGuid()}")
                 .Options;
@@ -61,20 +52,19 @@ public class DatabaseTests : IDisposable
     }
 
     [Fact]
-    public async Task RegisterPatient_SingleEmbedding_CreatesPatientAndBiometric()
+    public async Task RegisterPatient_SingleEmbedding_CreatesPatientAndFaceEmbedding()
     {
         var embedding = CreateTestVector(512);
 
         var patient = await _repository.RegisterPatientAsync(
             "Test Person", embedding, notes: "Test");
 
-        Assert.NotEmpty(patient.IDCard); // IDCard is assigned (may be empty string from repo)
+        Assert.NotEmpty(patient.IDCard);
         Assert.Equal("Test Person", patient.FullName);
 
-        // Verify in database
         var loaded = await _repository.GetPatientWithBiometricsAsync(patient.IDCard);
         Assert.NotNull(loaded);
-        Assert.Single(loaded!.Biometrics, b => b.BiometricType == BiometricRemarks.Types.Face);
+        Assert.Single(loaded!.FaceEmbeddings);
     }
 
     [Fact]
@@ -92,7 +82,7 @@ public class DatabaseTests : IDisposable
 
         var loaded = await _repository.GetPatientWithBiometricsAsync(patient.IDCard);
         Assert.NotNull(loaded);
-        Assert.Equal(3, loaded!.Biometrics.Count(b => b.BiometricType == BiometricRemarks.Types.Face));
+        Assert.Equal(3, loaded!.FaceEmbeddings.Count);
     }
 
     [Fact]
@@ -104,7 +94,7 @@ public class DatabaseTests : IDisposable
         await _repository.AddFaceSampleAsync(patient.IDCard, CreateTestVector(512, seed: 99));
 
         var loaded = await _repository.GetPatientWithBiometricsAsync(patient.IDCard);
-        Assert.Equal(2, loaded!.Biometrics.Count(b => b.BiometricType == BiometricRemarks.Types.Face));
+        Assert.Equal(2, loaded!.FaceEmbeddings.Count);
     }
 
     [Fact]
@@ -154,12 +144,11 @@ public class DatabaseTests : IDisposable
         Assert.True(stats.TotalEmbeddings >= 2);
     }
 
-    // Skip vector search test when using InMemory (VECTOR_DISTANCE not supported)
     [Fact]
     public async Task FindClosestMatch_ReturnsNullForEmptyDatabase()
     {
-#pragma warning disable CS0162 // Unreachable code — USE_REAL_DB is a const toggle
-        if (!USE_REAL_DB) return; // InMemory doesn't support VECTOR_DISTANCE
+#pragma warning disable CS0162
+        if (!USE_REAL_DB) return;
 
         var queryVector = CreateTestVector(512, seed: 999);
         var result = await _repository.FindClosestMatchAsync(queryVector);
@@ -171,11 +160,9 @@ public class DatabaseTests : IDisposable
 #pragma warning restore CS0162
     }
 
-    // ── Cleanup ──
-
     public void Dispose()
     {
-#pragma warning disable CS0162 // Unreachable code — USE_REAL_DB is a const toggle
+#pragma warning disable CS0162
         if (USE_REAL_DB)
         {
             using var db = _dbFactory.CreateDbContext();
@@ -183,8 +170,6 @@ public class DatabaseTests : IDisposable
         }
 #pragma warning restore CS0162
     }
-
-    // ── Helpers ──
 
     private static float[] CreateTestVector(int dimensions, int seed = 42)
     {

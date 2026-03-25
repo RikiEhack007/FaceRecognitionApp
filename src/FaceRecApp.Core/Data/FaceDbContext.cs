@@ -10,14 +10,16 @@ namespace FaceRecApp.Core.Data;
 ///
 /// Tables:
 ///   - Patients (IDCard PK, demographics, audit)
-///   - Biometrics (unified face + fingerprint, with VECTOR(512) for face)
+///   - FaceEmbeddings (VECTOR(512) for face recognition)
+///   - FingerprintTemplates (ZK SDK templates for fingerprint matching)
 ///   - Visits (service routing)
 ///   - RecognitionLogs (audit trail)
 /// </summary>
 public class FaceDbContext : DbContext
 {
     public DbSet<Patient> Patients => Set<Patient>();
-    public DbSet<Biometric> Biometrics => Set<Biometric>();
+    public DbSet<FaceEmbedding> FaceEmbeddings => Set<FaceEmbedding>();
+    public DbSet<FingerprintTemplate> FingerprintTemplates => Set<FingerprintTemplate>();
     public DbSet<Visit> Visits => Set<Visit>();
     public DbSet<RecognitionLog> RecognitionLogs => Set<RecognitionLog>();
 
@@ -40,13 +42,16 @@ public class FaceDbContext : DbContext
             entity.HasIndex(e => e.FullName);
             entity.HasIndex(e => e.Site);
 
-            // Cascade delete: removing a patient also removes their biometrics
-            entity.HasMany(e => e.Biometrics)
+            entity.HasMany(e => e.FaceEmbeddings)
                   .WithOne(e => e.Patient)
                   .HasForeignKey(e => e.PID)
                   .OnDelete(DeleteBehavior.Cascade);
 
-            // Cascade delete: removing a patient also removes their visits
+            entity.HasMany(e => e.FingerprintTemplates)
+                  .WithOne(e => e.Patient)
+                  .HasForeignKey(e => e.PID)
+                  .OnDelete(DeleteBehavior.Cascade);
+
             entity.HasMany(e => e.Visits)
                   .WithOne(e => e.Patient)
                   .HasForeignKey(e => e.PID)
@@ -54,18 +59,27 @@ public class FaceDbContext : DbContext
         });
 
         // ──────────────────────────────────────────────
-        // Biometric Configuration (unified face + fingerprint)
+        // FaceEmbedding Configuration
         // ──────────────────────────────────────────────
-        modelBuilder.Entity<Biometric>(entity =>
+        modelBuilder.Entity<FaceEmbedding>(entity =>
         {
-            entity.ToTable("Biometrics");
+            entity.ToTable("FaceEmbeddings");
 
-            // Map float[] to SQL Server 2025 native VECTOR(512) type for face embeddings.
             entity.Property(e => e.Embedding)
                   .HasColumnType("vector(512)");
 
             entity.HasIndex(e => e.PID);
-            entity.HasIndex(e => e.BiometricType);
+        });
+
+        // ──────────────────────────────────────────────
+        // FingerprintTemplate Configuration
+        // ──────────────────────────────────────────────
+        modelBuilder.Entity<FingerprintTemplate>(entity =>
+        {
+            entity.ToTable("FingerprintTemplates");
+
+            entity.HasIndex(e => e.PID);
+            entity.HasIndex(e => e.FingerType);
         });
 
         // ──────────────────────────────────────────────
@@ -91,7 +105,6 @@ public class FaceDbContext : DbContext
             entity.HasIndex(e => e.PID);
             entity.HasIndex(e => e.WasRecognized);
 
-            // Don't cascade: if a patient is deleted, keep the logs
             entity.HasOne(e => e.Patient)
                   .WithMany()
                   .HasForeignKey(e => e.PID)

@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace FaceRecApp.Core.Migrations
 {
     /// <inheritdoc />
-    public partial class FreshBiometricSchema : Migration
+    public partial class SplitBiometricTables : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -49,22 +49,19 @@ namespace FaceRecApp.Core.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Biometrics",
+                name: "FaceEmbeddings",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    Date = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CapturedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     PID = table.Column<string>(type: "varchar(10)", nullable: false),
-                    BiometricType = table.Column<string>(type: "varchar(20)", nullable: false),
-                    Embedding = table.Column<string>(type: "vector(512)", nullable: true),
+                    Embedding = table.Column<string>(type: "vector(512)", nullable: false),
                     FaceThumbnail = table.Column<byte[]>(type: "varbinary(max)", nullable: true),
                     CaptureAngle = table.Column<string>(type: "varchar(20)", nullable: true),
                     QualityScore = table.Column<float>(type: "real", nullable: true),
-                    Template = table.Column<byte[]>(type: "varbinary(max)", nullable: true),
-                    Remark = table.Column<string>(type: "varchar(100)", nullable: true),
                     Consent = table.Column<bool>(type: "bit", nullable: false),
-                    ConsentRefusalReason = table.Column<string>(type: "varchar(500)", nullable: true),
+                    Remark = table.Column<string>(type: "varchar(100)", nullable: true),
                     CreatedBy = table.Column<string>(type: "varchar(50)", nullable: true),
                     CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     ModifiedBy = table.Column<string>(type: "varchar(50)", nullable: true),
@@ -72,9 +69,38 @@ namespace FaceRecApp.Core.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Biometrics", x => x.Id);
+                    table.PrimaryKey("PK_FaceEmbeddings", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Biometrics_Patients_PID",
+                        name: "FK_FaceEmbeddings_Patients_PID",
+                        column: x => x.PID,
+                        principalTable: "Patients",
+                        principalColumn: "IDCard",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "FingerprintTemplates",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    PID = table.Column<string>(type: "varchar(10)", nullable: false),
+                    FingerType = table.Column<string>(type: "varchar(20)", nullable: false),
+                    Template = table.Column<byte[]>(type: "varbinary(max)", nullable: true),
+                    CaptureDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Consent = table.Column<bool>(type: "bit", nullable: false),
+                    ConsentRefusalReason = table.Column<string>(type: "varchar(500)", nullable: true),
+                    Remark = table.Column<string>(type: "varchar(100)", nullable: true),
+                    CreatedBy = table.Column<string>(type: "varchar(50)", nullable: true),
+                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ModifiedBy = table.Column<string>(type: "varchar(50)", nullable: true),
+                    ModifiedDate = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_FingerprintTemplates", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_FingerprintTemplates_Patients_PID",
                         column: x => x.PID,
                         principalTable: "Patients",
                         principalColumn: "IDCard",
@@ -132,13 +158,18 @@ namespace FaceRecApp.Core.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_Biometrics_BiometricType",
-                table: "Biometrics",
-                column: "BiometricType");
+                name: "IX_FaceEmbeddings_PID",
+                table: "FaceEmbeddings",
+                column: "PID");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Biometrics_PID",
-                table: "Biometrics",
+                name: "IX_FingerprintTemplates_FingerType",
+                table: "FingerprintTemplates",
+                column: "FingerType");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_FingerprintTemplates_PID",
+                table: "FingerprintTemplates",
                 column: "PID");
 
             migrationBuilder.CreateIndex(
@@ -186,7 +217,10 @@ namespace FaceRecApp.Core.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "Biometrics");
+                name: "FaceEmbeddings");
+
+            migrationBuilder.DropTable(
+                name: "FingerprintTemplates");
 
             migrationBuilder.DropTable(
                 name: "RecognitionLogs");

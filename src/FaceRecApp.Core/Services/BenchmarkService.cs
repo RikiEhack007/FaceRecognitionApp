@@ -27,7 +27,7 @@ public class BenchmarkService
 
         await using var db = await _dbFactory.CreateDbContextAsync();
         report.TotalPatients = await db.Patients.CountAsync();
-        report.TotalEmbeddings = await db.Biometrics.CountAsync(b => b.BiometricType == BiometricRemarks.Types.Face);
+        report.TotalEmbeddings = await db.FaceEmbeddings.CountAsync();
 
         if (report.TotalEmbeddings == 0)
         {
@@ -161,12 +161,11 @@ public class BenchmarkService
 
                 for (int j = 0; j < samplesPerPerson; j++)
                 {
-                    patient.Biometrics.Add(new Biometric
+                    patient.FaceEmbeddings.Add(new FaceEmbedding
                     {
-                        BiometricType = BiometricRemarks.Types.Face,
                         Embedding = GenerateRandomVector(RecognitionSettings.EmbeddingDimensions),
                         CaptureAngle = "synthetic",
-                        Date = DateTime.UtcNow,
+                        CapturedAt = DateTime.UtcNow,
                         Consent = true,
                     });
                 }

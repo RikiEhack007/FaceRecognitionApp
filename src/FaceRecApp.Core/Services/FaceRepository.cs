@@ -12,7 +12,7 @@ namespace FaceRecApp.Core.Services;
 /// Key operations:
 ///   - FindClosestMatch(): Uses VECTOR_SEARCH (DiskANN ANN) or
 ///     VECTOR_DISTANCE (brute-force KNN) depending on index.
-///   - RegisterPatient(): Stores a new patient with biometrics.
+///   - RegisterPatient(): Stores a new patient with face embeddings.
 ///
 /// Thread safety:
 ///   Uses IDbContextFactory to create short-lived DbContext instances per operation.
@@ -22,7 +22,6 @@ public class FaceRepository
     private readonly IDbContextFactory<FaceDbContext> _dbFactory;
     private static volatile bool _useVectorSearch;
 
-    /// <summary>Shared projection from Patient → PatientSummary (translatable by EF Core).</summary>
     private static readonly System.Linq.Expressions.Expression<Func<Patient, PatientSummary>> ToSummary =
         p => new PatientSummary
         {
@@ -31,7 +30,7 @@ public class FaceRepository
             Site = p.Site,
             Sex = p.Sex,
             Note = p.Note,
-            FaceSampleCount = p.Biometrics.Count(b => b.BiometricType == BiometricRemarks.Types.Face),
+            FaceSampleCount = p.FaceEmbeddings.Count,
             CreatedOn = p.CreatedOn,
         };
 
@@ -40,9 +39,6 @@ public class FaceRepository
         _dbFactory = dbFactory;
     }
 
-    /// <summary>
-    /// Check if the DiskANN vector index exists and is enabled.
-    /// </summary>
     public async Task DetectVectorIndexAsync()
     {
         try
@@ -51,7 +47,7 @@ public class FaceRepository
             var count = await db.Database.SqlQueryRaw<int>(
                 @"SELECT COUNT(*) AS [Value] FROM sys.indexes i
                   JOIN sys.tables t ON i.object_id = t.object_id
-                  WHERE t.name = 'Biometrics' AND i.type_desc = 'VECTOR' AND i.is_disabled = 0"
+                  WHERE t.name = 'FaceEmbeddings' AND i.type_desc = 'VECTOR' AND i.is_disabled = 0"
             ).FirstOrDefaultAsync();
 
             _useVectorSearch = count > 0;
@@ -63,17 +59,12 @@ public class FaceRepository
         }
     }
 
-    /// <summary>Whether the DiskANN VECTOR_SEARCH path is active.</summary>
     public bool UseVectorSearch => _useVectorSearch;
 
     // ══════════════════════════════════════════════
     //  VECTOR SEARCH — The core matching operation
     // ══════════════════════════════════════════════
 
-    /// <summary>
-    /// Find the closest matching face embedding in the database.
-    /// Two paths: DiskANN (~5ms) or brute-force (~75ms).
-    /// </summary>
     public async Task<FaceMatchResult?> FindClosestMatchAsync(float[] queryEmbedding)
     {
         if (_useVectorSearch)
@@ -101,13 +92,12 @@ public class FaceRepository
             @"DECLARE @qv VECTOR(512) = CAST(@p0 AS VECTOR(512));
               SELECT t.Id, t.PID, s.distance AS Distance
               FROM VECTOR_SEARCH(
-                  TABLE = dbo.Biometrics AS t,
+                  TABLE = dbo.FaceEmbeddings AS t,
                   COLUMN = Embedding,
                   SIMILAR_TO = @qv,
                   METRIC = 'cosine',
                   TOP_N = 10
               ) AS s
-              WHERE t.BiometricType = 'Face'
               ORDER BY s.distance",
             new SqlParameter("@p0", vectorJson)
         ).ToListAsync();
@@ -115,7 +105,6 @@ public class FaceRepository
         if (results.Count == 0)
             return null;
 
-        // Join with Patients to get person info
         var pids = results.Select(r => r.PID).Distinct().ToList();
         var patients = await db.Patients
             .Where(p => pids.Contains(p.IDCard))
@@ -142,13 +131,13 @@ public class FaceRepository
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
 
-        var match = await db.Biometrics
-            .Include(b => b.Patient)
-            .Where(b => b.BiometricType == BiometricRemarks.Types.Face && b.Embedding != null)
-            .Select(b => new
+        var match = await db.FaceEmbeddings
+            .Include(e => e.Patient)
+            .Where(e => e.Embedding != null)
+            .Select(e => new
             {
-                Biometric = b,
-                Distance = EF.Functions.VectorDistance("cosine", b.Embedding!, queryEmbedding)
+                FaceEmbedding = e,
+                Distance = EF.Functions.VectorDistance("cosine", e.Embedding!, queryEmbedding)
             })
             .OrderBy(x => x.Distance)
             .FirstOrDefaultAsync();
@@ -158,8 +147,8 @@ public class FaceRepository
 
         return new FaceMatchResult
         {
-            Patient = match.Biometric.Patient,
-            BiometricId = match.Biometric.Id,
+            Patient = match.FaceEmbedding.Patient,
+            BiometricId = match.FaceEmbedding.Id,
             Distance = (float)match.Distance,
             IsMatch = match.Distance <= RecognitionSettings.DistanceThreshold
         };
@@ -178,20 +167,17 @@ public class FaceRepository
         return sb.ToString();
     }
 
-    /// <summary>
-    /// Find the top N closest matches.
-    /// </summary>
     public async Task<List<FaceMatchResult>> FindTopMatchesAsync(float[] queryEmbedding, int topN = 5)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
 
-        var matches = await db.Biometrics
-            .Include(b => b.Patient)
-            .Where(b => b.BiometricType == BiometricRemarks.Types.Face && b.Embedding != null)
-            .Select(b => new
+        var matches = await db.FaceEmbeddings
+            .Include(e => e.Patient)
+            .Where(e => e.Embedding != null)
+            .Select(e => new
             {
-                Biometric = b,
-                Distance = EF.Functions.VectorDistance("cosine", b.Embedding!, queryEmbedding)
+                FaceEmbedding = e,
+                Distance = EF.Functions.VectorDistance("cosine", e.Embedding!, queryEmbedding)
             })
             .OrderBy(x => x.Distance)
             .Take(topN)
@@ -199,8 +185,8 @@ public class FaceRepository
 
         return matches.Select(m => new FaceMatchResult
         {
-            Patient = m.Biometric.Patient,
-            BiometricId = m.Biometric.Id,
+            Patient = m.FaceEmbedding.Patient,
+            BiometricId = m.FaceEmbedding.Id,
             Distance = (float)m.Distance,
             IsMatch = m.Distance <= RecognitionSettings.DistanceThreshold
         }).ToList();
@@ -210,22 +196,17 @@ public class FaceRepository
     //  VERIFY — 1:1 comparison against a specific patient
     // ══════════════════════════════════════════════
 
-    /// <summary>
-    /// 1:1 verification: compare a query embedding against a specific patient's face embeddings.
-    /// </summary>
     public async Task<FaceMatchResult?> VerifyAgainstPatientAsync(string pid, float[] queryEmbedding)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
 
-        var match = await db.Biometrics
-            .Include(b => b.Patient)
-            .Where(b => b.PID == pid
-                     && b.BiometricType == BiometricRemarks.Types.Face
-                     && b.Embedding != null)
-            .Select(b => new
+        var match = await db.FaceEmbeddings
+            .Include(e => e.Patient)
+            .Where(e => e.PID == pid && e.Embedding != null)
+            .Select(e => new
             {
-                Biometric = b,
-                Distance = EF.Functions.VectorDistance("cosine", b.Embedding!, queryEmbedding)
+                FaceEmbedding = e,
+                Distance = EF.Functions.VectorDistance("cosine", e.Embedding!, queryEmbedding)
             })
             .OrderBy(x => x.Distance)
             .FirstOrDefaultAsync();
@@ -235,22 +216,20 @@ public class FaceRepository
 
         return new FaceMatchResult
         {
-            Patient = match.Biometric.Patient,
-            BiometricId = match.Biometric.Id,
+            Patient = match.FaceEmbedding.Patient,
+            BiometricId = match.FaceEmbedding.Id,
             Distance = (float)match.Distance,
             IsMatch = match.Distance <= RecognitionSettings.DistanceThreshold
         };
     }
 
-    /// <summary>Create a face Biometric record with standard audit fields.</summary>
-    private static Biometric CreateFaceBiometric(float[] embedding, byte[]? thumbnail, string? angle = "front")
+    private static FaceEmbedding CreateFaceEmbedding(float[] embedding, byte[]? thumbnail, string? angle = "front")
         => new()
         {
-            BiometricType = BiometricRemarks.Types.Face,
             Embedding = embedding,
             FaceThumbnail = thumbnail,
             CaptureAngle = angle,
-            Date = DateTime.UtcNow,
+            CapturedAt = DateTime.UtcNow,
             Consent = true,
             CreatedBy = Environment.UserName,
             CreatedDate = DateTime.UtcNow,
@@ -260,9 +239,6 @@ public class FaceRepository
     //  REGISTRATION
     // ══════════════════════════════════════════════
 
-    /// <summary>
-    /// Register a new person with their initial face embedding(s).
-    /// </summary>
     public async Task<Patient> RegisterPatientAsync(
         string name,
         IReadOnlyList<float[]> embeddings,
@@ -288,7 +264,7 @@ public class FaceRepository
         {
             var thumb = thumbnails != null && i < thumbnails.Count ? thumbnails[i] : null;
             var angle = i switch { 0 => "front", 1 => "left", 2 => "right", _ => $"sample_{i + 1}" };
-            patient.Biometrics.Add(CreateFaceBiometric(embeddings[i], thumb, angle));
+            patient.FaceEmbeddings.Add(CreateFaceEmbedding(embeddings[i], thumb, angle));
         }
 
         db.Patients.Add(patient);
@@ -297,9 +273,6 @@ public class FaceRepository
         return patient;
     }
 
-    /// <summary>
-    /// Quick registration with a single embedding.
-    /// </summary>
     public async Task<Patient> RegisterPatientAsync(
         string name,
         float[] embedding,
@@ -317,10 +290,7 @@ public class FaceRepository
     //  ENROLLMENT — Add more face samples
     // ══════════════════════════════════════════════
 
-    /// <summary>
-    /// Add an additional face sample to an existing patient.
-    /// </summary>
-    public async Task<Biometric> AddFaceSampleAsync(
+    public async Task<FaceEmbedding> AddFaceSampleAsync(
         string pid,
         float[] embedding,
         byte[]? thumbnail = null,
@@ -331,13 +301,13 @@ public class FaceRepository
         _ = await db.Patients.FindAsync(pid)
             ?? throw new ArgumentException($"Patient with PID {pid} not found");
 
-        var biometric = CreateFaceBiometric(embedding, thumbnail, angle);
-        biometric.PID = pid;
+        var faceEmbedding = CreateFaceEmbedding(embedding, thumbnail, angle);
+        faceEmbedding.PID = pid;
 
-        db.Biometrics.Add(biometric);
+        db.FaceEmbeddings.Add(faceEmbedding);
         await db.SaveChangesAsync();
 
-        return biometric;
+        return faceEmbedding;
     }
 
     // ══════════════════════════════════════════════
@@ -368,12 +338,9 @@ public class FaceRepository
     }
 
     // ══════════════════════════════════════════════
-    //  PERSON MANAGEMENT (CRUD)
+    //  PATIENT MANAGEMENT (CRUD)
     // ══════════════════════════════════════════════
 
-    /// <summary>
-    /// Get all patients with their face sample counts.
-    /// </summary>
     public async Task<List<PatientSummary>> GetAllPatientsAsync()
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
@@ -384,22 +351,16 @@ public class FaceRepository
             .ToListAsync();
     }
 
-    /// <summary>
-    /// Get a patient with all their biometrics.
-    /// </summary>
     public async Task<Patient?> GetPatientWithBiometricsAsync(string pid)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
 
         return await db.Patients
-            .Include(p => p.Biometrics)
+            .Include(p => p.FaceEmbeddings)
+            .Include(p => p.FingerprintTemplates)
             .FirstOrDefaultAsync(p => p.IDCard == pid);
     }
 
-    /// <summary>
-    /// Hard-delete a patient and all their related records.
-    /// Cascade delete handles Biometrics and Visits.
-    /// </summary>
     public async Task DeletePatientAsync(string pid)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
@@ -412,17 +373,26 @@ public class FaceRepository
         }
     }
 
-    /// <summary>
-    /// Delete a specific biometric sample.
-    /// </summary>
-    public async Task DeleteBiometricAsync(int biometricId)
+    public async Task DeleteFaceEmbeddingAsync(int id)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
 
-        var biometric = await db.Biometrics.FindAsync(biometricId);
-        if (biometric != null)
+        var face = await db.FaceEmbeddings.FindAsync(id);
+        if (face != null)
         {
-            db.Biometrics.Remove(biometric);
+            db.FaceEmbeddings.Remove(face);
+            await db.SaveChangesAsync();
+        }
+    }
+
+    public async Task DeleteFingerprintTemplateAsync(int id)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        var fp = await db.FingerprintTemplates.FindAsync(id);
+        if (fp != null)
+        {
+            db.FingerprintTemplates.Remove(fp);
             await db.SaveChangesAsync();
         }
     }
@@ -431,9 +401,6 @@ public class FaceRepository
     //  PATIENT SEARCH
     // ══════════════════════════════════════════════
 
-    /// <summary>
-    /// Search patients by name (LIKE search on FullName, MotherName, FatherName).
-    /// </summary>
     public async Task<List<PatientSummary>> SearchPatientsByNameAsync(string query)
     {
         if (string.IsNullOrWhiteSpace(query))
@@ -453,22 +420,17 @@ public class FaceRepository
             .ToListAsync();
     }
 
-    /// <summary>
-    /// Look up a patient by their exact PID (IDCard).
-    /// </summary>
     public async Task<Patient?> GetPatientByPidAsync(string pid)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
 
         return await db.Patients
-            .Include(p => p.Biometrics)
+            .Include(p => p.FaceEmbeddings)
+            .Include(p => p.FingerprintTemplates)
             .Include(p => p.Visits)
             .FirstOrDefaultAsync(p => p.IDCard == pid);
     }
 
-    /// <summary>
-    /// Check for duplicate patients by name (deduplication before enrollment).
-    /// </summary>
     public async Task<List<PatientSummary>> CheckDuplicateByNameAsync(string fullName)
     {
         if (string.IsNullOrWhiteSpace(fullName))
@@ -482,10 +444,6 @@ public class FaceRepository
             .ToListAsync();
     }
 
-    /// <summary>
-    /// Register a new patient with full demographics and face embedding.
-    /// Used by the EnrolmentWindow multi-step wizard.
-    /// </summary>
     public async Task<Patient> RegisterPatientAsync(
         Patient patient,
         float[] embedding,
@@ -493,7 +451,7 @@ public class FaceRepository
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
 
-        patient.Biometrics.Add(CreateFaceBiometric(embedding, thumbnail));
+        patient.FaceEmbeddings.Add(CreateFaceEmbedding(embedding, thumbnail));
 
         patient.CreatedOn ??= DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
         patient.CreatedBy ??= Environment.UserName;
@@ -504,9 +462,6 @@ public class FaceRepository
         return patient;
     }
 
-    /// <summary>
-    /// Register a patient without any biometrics (e.g. when face capture was skipped with a remark).
-    /// </summary>
     public async Task<Patient> RegisterPatientAsync(Patient patient)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
@@ -519,9 +474,6 @@ public class FaceRepository
         return patient;
     }
 
-    /// <summary>
-    /// Update a patient's demographics.
-    /// </summary>
     public async Task UpdatePatientAsync(Patient patient)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
@@ -557,19 +509,15 @@ public class FaceRepository
     }
 
     // ══════════════════════════════════════════════
-    //  FINGERPRINT TEMPLATES (via Biometrics table)
+    //  FINGERPRINT TEMPLATES
     // ══════════════════════════════════════════════
 
-    /// <summary>
-    /// Load all fingerprint templates for 1:N matching.
-    /// Returns a dictionary mapping Biometric.Id → (template bytes, PID).
-    /// </summary>
     public async Task<Dictionary<int, (byte[] Template, string PID)>> GetAllFingerprintTemplatesAsync()
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
-        var fingerprints = await db.Biometrics
-            .Where(b => b.BiometricType != BiometricRemarks.Types.Face && b.Template != null)
-            .Select(b => new { b.Id, b.Template, b.PID })
+        var fingerprints = await db.FingerprintTemplates
+            .Where(t => t.Template != null)
+            .Select(t => new { t.Id, t.Template, t.PID })
             .ToListAsync();
 
         return fingerprints.ToDictionary(
@@ -577,42 +525,35 @@ public class FaceRepository
             f => (f.Template!, f.PID));
     }
 
-    /// <summary>
-    /// Store a fingerprint enrollment template for a patient.
-    /// Template can be null when capture failed (remark explains why).
-    /// </summary>
-    public async Task<Biometric> AddFingerprintTemplateAsync(
+    public async Task<FingerprintTemplate> AddFingerprintTemplateAsync(
         string pid, string fingerType, byte[]? template, bool consent,
         string? remark = null)
     {
-        var record = new Biometric
+        var record = new FingerprintTemplate
         {
             PID = pid,
-            BiometricType = fingerType,
+            FingerType = fingerType,
             Template = template,
             Consent = consent,
             Remark = remark,
-            Date = DateTime.UtcNow,
+            CaptureDate = DateTime.UtcNow,
             CreatedBy = Environment.UserName,
             CreatedDate = DateTime.UtcNow,
         };
 
         await using var db = await _dbFactory.CreateDbContextAsync();
-        db.Biometrics.Add(record);
+        db.FingerprintTemplates.Add(record);
         await db.SaveChangesAsync();
         return record;
     }
 
-    /// <summary>
-    /// Get the patient who owns a specific biometric record (fingerprint or face).
-    /// </summary>
-    public async Task<Patient?> GetPatientByBiometricIdAsync(int biometricId)
+    public async Task<Patient?> GetPatientByFingerprintIdAsync(int fingerprintId)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
-        var biometric = await db.Biometrics
-            .Include(b => b.Patient)
-            .FirstOrDefaultAsync(b => b.Id == biometricId);
-        return biometric?.Patient;
+        var fp = await db.FingerprintTemplates
+            .Include(t => t.Patient)
+            .FirstOrDefaultAsync(t => t.Id == fingerprintId);
+        return fp?.Patient;
     }
 
     // ══════════════════════════════════════════════
@@ -623,9 +564,8 @@ public class FaceRepository
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
 
-        // Two queries instead of five: patients+embeddings, and recognition log aggregates
         var totalPatients = await db.Patients.CountAsync();
-        var totalEmbeddings = await db.Biometrics.CountAsync(b => b.BiometricType == BiometricRemarks.Types.Face);
+        var totalEmbeddings = await db.FaceEmbeddings.CountAsync();
 
         var logCounts = await db.RecognitionLogs
             .GroupBy(_ => 1)

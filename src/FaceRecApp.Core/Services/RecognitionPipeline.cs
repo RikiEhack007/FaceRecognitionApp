@@ -647,7 +647,7 @@ public class RecognitionPipeline : IDisposable
                 return result;
             }
 
-            if (!patient.Biometrics.Any(b => b.BiometricType == Core.Entities.BiometricRemarks.Types.Face))
+            if (!patient.FaceEmbeddings.Any())
             {
                 result.Error = $"Patient '{patient.FullName}' has no enrolled face samples.";
                 result.Patient = patient;

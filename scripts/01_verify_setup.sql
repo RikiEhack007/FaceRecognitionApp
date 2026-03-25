@@ -18,12 +18,12 @@ GO
 SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
 WHERE TABLE_TYPE = 'BASE TABLE'
 ORDER BY TABLE_NAME;
--- Expected: Biometrics, Patients, Visits, RecognitionLogs, __EFMigrationsHistory
+-- Expected: FaceEmbeddings, FingerprintTemplates, Patients, Visits, RecognitionLogs, __EFMigrationsHistory
 
 -- Step 4: Verify VECTOR(512) column exists
 SELECT COLUMN_NAME, DATA_TYPE
 FROM INFORMATION_SCHEMA.COLUMNS
-WHERE TABLE_NAME = 'Biometrics' AND COLUMN_NAME = 'Embedding';
+WHERE TABLE_NAME = 'FaceEmbeddings' AND COLUMN_NAME = 'Embedding';
 -- Expected: DATA_TYPE = 'vector'
 
 -- Step 5: Test vector operations work
@@ -60,8 +60,8 @@ GO
 -- Create approximate nearest neighbor index
 -- WARNING: Table becomes read-only while vector index exists (preview limitation)
 -- Drop the index before inserting new data, then recreate.
-CREATE VECTOR INDEX IX_Biometrics_Vector
-ON Biometrics(Embedding)
+CREATE VECTOR INDEX IX_FaceEmbeddings_Vector
+ON FaceEmbeddings(Embedding)
 WITH (METRIC = 'cosine', TYPE = 'diskann');
 GO
 
@@ -76,9 +76,9 @@ GO
 -- Count registered patients and biometric samples
 SELECT
     (SELECT COUNT(*) FROM Patients) AS [Total Patients],
-    (SELECT COUNT(*) FROM Biometrics WHERE BiometricType = 'Face') AS [Face Samples],
-    (SELECT COUNT(*) FROM Biometrics WHERE BiometricType LIKE 'Finger%') AS [Fingerprint Samples],
-    (SELECT AVG(cnt) FROM (SELECT COUNT(*) as cnt FROM Biometrics WHERE BiometricType = 'Face' GROUP BY PID) sub) AS [Avg Face Samples Per Patient];
+    (SELECT COUNT(*) FROM FaceEmbeddings) AS [Face Samples],
+    (SELECT COUNT(*) FROM FingerprintTemplates) AS [Fingerprint Samples],
+    (SELECT AVG(cnt) FROM (SELECT COUNT(*) as cnt FROM FaceEmbeddings GROUP BY PID) sub) AS [Avg Face Samples Per Patient];
 
 -- Recent recognition attempts
 SELECT TOP 20

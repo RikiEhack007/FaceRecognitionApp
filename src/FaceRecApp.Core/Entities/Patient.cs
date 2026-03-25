@@ -111,6 +111,7 @@ public class Patient
 
     // ─── Navigation ───
 
-    public ICollection<Biometric> Biometrics { get; set; } = new List<Biometric>();
+    public ICollection<FaceEmbedding> FaceEmbeddings { get; set; } = new List<FaceEmbedding>();
+    public ICollection<FingerprintTemplate> FingerprintTemplates { get; set; } = new List<FingerprintTemplate>();
     public ICollection<Visit> Visits { get; set; } = new List<Visit>();
 }

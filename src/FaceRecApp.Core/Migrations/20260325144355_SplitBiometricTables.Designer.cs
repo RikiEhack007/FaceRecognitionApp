@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace FaceRecApp.Core.Migrations
 {
     [DbContext(typeof(FaceDbContext))]
-    [Migration("20260313111125_FreshBiometricSchema")]
-    partial class FreshBiometricSchema
+    [Migration("20260325144355_SplitBiometricTables")]
+    partial class SplitBiometricTables
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -25,7 +25,7 @@ namespace FaceRecApp.Core.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("FaceRecApp.Core.Entities.Biometric", b =>
+            modelBuilder.Entity("FaceRecApp.Core.Entities.FaceEmbedding", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -33,18 +33,14 @@ namespace FaceRecApp.Core.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("BiometricType")
-                        .IsRequired()
-                        .HasColumnType("varchar(20)");
-
                     b.Property<string>("CaptureAngle")
                         .HasColumnType("varchar(20)");
 
+                    b.Property<DateTime>("CapturedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<bool>("Consent")
                         .HasColumnType("bit");
-
-                    b.Property<string>("ConsentRefusalReason")
-                        .HasColumnType("varchar(500)");
 
                     b.Property<string>("CreatedBy")
                         .HasColumnType("varchar(50)");
@@ -52,10 +48,8 @@ namespace FaceRecApp.Core.Migrations
                     b.Property<DateTime?>("CreatedDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<DateTime>("Date")
-                        .HasColumnType("datetime2");
-
                     b.PrimitiveCollection<string>("Embedding")
+                        .IsRequired()
                         .HasColumnType("vector(512)");
 
                     b.Property<byte[]>("FaceThumbnail")
@@ -78,16 +72,64 @@ namespace FaceRecApp.Core.Migrations
                     b.Property<string>("Remark")
                         .HasColumnType("varchar(100)");
 
+                    b.HasKey("Id");
+
+                    b.HasIndex("PID");
+
+                    b.ToTable("FaceEmbeddings", (string)null);
+                });
+
+            modelBuilder.Entity("FaceRecApp.Core.Entities.FingerprintTemplate", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CaptureDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("Consent")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ConsentRefusalReason")
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<DateTime?>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FingerType")
+                        .IsRequired()
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PID")
+                        .IsRequired()
+                        .HasColumnType("varchar(10)")
+                        .HasColumnName("PID");
+
+                    b.Property<string>("Remark")
+                        .HasColumnType("varchar(100)");
+
                     b.Property<byte[]>("Template")
                         .HasColumnType("varbinary(max)");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BiometricType");
+                    b.HasIndex("FingerType");
 
                     b.HasIndex("PID");
 
-                    b.ToTable("Biometrics", (string)null);
+                    b.ToTable("FingerprintTemplates", (string)null);
                 });
 
             modelBuilder.Entity("FaceRecApp.Core.Entities.Patient", b =>
@@ -268,10 +310,21 @@ namespace FaceRecApp.Core.Migrations
                     b.ToTable("Visits", (string)null);
                 });
 
-            modelBuilder.Entity("FaceRecApp.Core.Entities.Biometric", b =>
+            modelBuilder.Entity("FaceRecApp.Core.Entities.FaceEmbedding", b =>
                 {
                     b.HasOne("FaceRecApp.Core.Entities.Patient", "Patient")
-                        .WithMany("Biometrics")
+                        .WithMany("FaceEmbeddings")
+                        .HasForeignKey("PID")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Patient");
+                });
+
+            modelBuilder.Entity("FaceRecApp.Core.Entities.FingerprintTemplate", b =>
+                {
+                    b.HasOne("FaceRecApp.Core.Entities.Patient", "Patient")
+                        .WithMany("FingerprintTemplates")
                         .HasForeignKey("PID")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -302,7 +355,9 @@ namespace FaceRecApp.Core.Migrations
 
             modelBuilder.Entity("FaceRecApp.Core.Entities.Patient", b =>
                 {
-                    b.Navigation("Biometrics");
+                    b.Navigation("FaceEmbeddings");
+
+                    b.Navigation("FingerprintTemplates");
 
                     b.Navigation("Visits");
                 });

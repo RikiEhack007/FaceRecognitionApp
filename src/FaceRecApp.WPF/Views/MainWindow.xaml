@@ -278,27 +278,12 @@
                                     <Style TargetType="StackPanel">
                                         <Setter Property="Opacity" Value="1" />
                                         <Style.Triggers>
-                                            <MultiDataTrigger>
-                                                <MultiDataTrigger.Conditions>
-                                                    <Condition Binding="{Binding IsEnrolStepRequired}" Value="False" />
-                                                    <Condition Binding="{Binding CurrentWorkflowStep}" Value="1" />
-                                                </MultiDataTrigger.Conditions>
+                                            <DataTrigger Binding="{Binding IsEnrolStepRequired}" Value="False">
                                                 <Setter Property="Opacity" Value="0.4" />
-                                            </MultiDataTrigger>
-                                            <MultiDataTrigger>
-                                                <MultiDataTrigger.Conditions>
-                                                    <Condition Binding="{Binding IsEnrolStepRequired}" Value="False" />
-                                                    <Condition Binding="{Binding CurrentWorkflowStep}" Value="2" />
-                                                </MultiDataTrigger.Conditions>
-                                                <Setter Property="Opacity" Value="0.4" />
-                                            </MultiDataTrigger>
-                                            <MultiDataTrigger>
-                                                <MultiDataTrigger.Conditions>
-                                                    <Condition Binding="{Binding IsEnrolStepRequired}" Value="False" />
-                                                    <Condition Binding="{Binding CurrentWorkflowStep}" Value="4" />
-                                                </MultiDataTrigger.Conditions>
-                                                <Setter Property="Opacity" Value="0.4" />
-                                            </MultiDataTrigger>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding CurrentWorkflowStep}" Value="3">
+                                                <Setter Property="Opacity" Value="1" />
+                                            </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </StackPanel.Style>

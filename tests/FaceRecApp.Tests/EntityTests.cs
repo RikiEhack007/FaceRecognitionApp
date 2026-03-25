@@ -14,55 +14,62 @@ public class EntityTests
         var patient = new Patient { FullName = "John Doe", IDCard = "R00001" };
 
         Assert.Equal("John Doe", patient.FullName);
-        Assert.NotEmpty(patient.Biometrics.GetType().Name); // Collection initialized
+        Assert.NotEmpty(patient.FaceEmbeddings.GetType().Name);
+        Assert.NotEmpty(patient.FingerprintTemplates.GetType().Name);
     }
 
     [Fact]
-    public void Biometric_Face_EmptyByDefault()
+    public void FaceEmbedding_EmptyByDefault()
     {
-        var biometric = new Biometric
-        {
-            BiometricType = BiometricRemarks.Types.Face,
-        };
+        var face = new FaceEmbedding();
 
-        Assert.Null(biometric.Embedding);
-        Assert.Null(biometric.FaceThumbnail);
-        Assert.Null(biometric.CaptureAngle);
-        Assert.True(biometric.IsFace);
-        Assert.False(biometric.IsFingerprint);
+        Assert.NotNull(face.Embedding);
+        Assert.Empty(face.Embedding);
+        Assert.Null(face.FaceThumbnail);
+        Assert.Null(face.CaptureAngle);
+        Assert.True(face.Consent);
     }
 
     [Fact]
-    public void Biometric_Face_Stores512Dimensions()
+    public void FaceEmbedding_Stores512Dimensions()
     {
-        // ArcFace outputs 512 dimensions
         var vector = new float[RecognitionSettings.EmbeddingDimensions];
         for (int i = 0; i < vector.Length; i++)
             vector[i] = (float)(i * 0.01);
 
-        var biometric = new Biometric
+        var face = new FaceEmbedding
         {
             PID = "R00001",
-            BiometricType = BiometricRemarks.Types.Face,
             Embedding = vector
         };
 
-        Assert.Equal(512, biometric.Embedding!.Length);
-        Assert.InRange(biometric.Embedding[100], 0.99f, 1.01f); // ~1.0
+        Assert.Equal(512, face.Embedding.Length);
+        Assert.InRange(face.Embedding[100], 0.99f, 1.01f);
+    }
+
+    [Fact]
+    public void FingerprintTemplate_DefaultValues()
+    {
+        var fp = new FingerprintTemplate
+        {
+            PID = "R00001",
+            FingerType = BiometricRemarks.Types.FingerR2,
+        };
+
+        Assert.Null(fp.Template);
+        Assert.True(fp.Consent);
+        Assert.Equal("FingerR2", fp.FingerType);
     }
 
     [Fact]
     public void RecognitionLog_SimilarityCalculation()
     {
-        // Distance 0.3 → Similarity 0.7 (70%)
         var log = new RecognitionLog { Distance = 0.3f };
         Assert.InRange(log.Similarity, 0.69f, 0.71f);
 
-        // Distance 0.0 → Similarity 1.0 (100% - perfect match)
         var perfect = new RecognitionLog { Distance = 0.0f };
         Assert.Equal(1.0f, perfect.Similarity);
 
-        // Distance 1.0 → Similarity 0.0 (0% - no match)
         var noMatch = new RecognitionLog { Distance = 1.0f };
         Assert.Equal(0.0f, noMatch.Similarity);
     }
@@ -70,13 +77,8 @@ public class EntityTests
     [Fact]
     public void RecognitionSettings_ThresholdsAreSane()
     {
-        // Distance threshold must be between 0 and 1
         Assert.InRange(RecognitionSettings.DistanceThreshold, 0f, 1f);
-
-        // High confidence must be stricter (lower) than general threshold
         Assert.True(RecognitionSettings.HighConfidenceDistance < RecognitionSettings.DistanceThreshold);
-
-        // Embedding dimensions must be 512 (ArcFace standard)
         Assert.Equal(512, RecognitionSettings.EmbeddingDimensions);
     }
 }

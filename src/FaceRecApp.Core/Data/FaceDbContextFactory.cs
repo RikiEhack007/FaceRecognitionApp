@@ -35,7 +35,7 @@ public class FaceDbContextFactory : IDesignTimeDbContextFactory<FaceDbContext>
         // Trusted_Connection=true → uses Windows Authentication (no password needed)
         // TrustServerCertificate=true → skip SSL validation (OK for local dev)
         var connectionString =
-            "Server=localhost,60240;" +
+            "Server=localhost\\SQLEXPRESS;" +
             "Database=FaceRecognitionDb;" +
             "Trusted_Connection=true;" +
             "TrustServerCertificate=true;" +
